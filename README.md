@@ -33,7 +33,7 @@ The extension uses Manifest V3 and requires Chrome 111 or newer because its earl
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the commit standard, SemVer policy, and release setup. Published versions are listed in [CHANGELOG.md](CHANGELOG.md) and on [Releases](https://github.com/yannelli/im-an-adult/releases).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the commit standard, SemVer policy, and release setup. Published versions are listed in [CHANGELOG.md](CHANGELOG.md) and on [Releases](https://github.com/yannelli/im-an-adult/releases). After the Chrome Web Store listing is connected, each SemVer GitHub Release is also submitted to the store.
 
 ## Limits
 
