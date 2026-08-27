@@ -273,7 +273,7 @@ function switchAt(x, y, on, { invert = false, s = 1 } = {}) {
 function siteVerdict(x, y, w, h, hostname, state) {
   const active = state === "active";
   const paused = state === "paused";
-  const fill = active ? PINE : CREAM;
+  const fill = active ? PINE : CREAM_DIM;
   const stroke = active ? PINE : HAIRLINE;
   const hostFill = active ? CREAM : INK;
   const overFill = active ? "rgb(243 241 232 / 65%)" : INK_SOFT;
@@ -293,23 +293,38 @@ function settingCard(x, y, w, h, title, sub, on) {
   const sw = 40 * 1.7;
   const sh = 22 * 1.7;
   return `
-  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${CREAM}" stroke="${HAIRLINE}"/>
+  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${CREAM_DIM}" stroke="${HAIRLINE}"/>
   ${textPath(serifSemi, title, x + 28, y + 48, 28, INK)}
   ${textPath(serifItal, sub, x + 28, y + 84, 18, INK_SOFT)}
   ${switchAt(x + w - 28 - sw, y + (h - sh) / 2, on, { s: 1.7 })}`;
 }
 
+function wrapWords(font, text, fs, maxW) {
+  const lines = [];
+  let cur = "";
+  for (const word of text.split(" ")) {
+    const next = cur ? `${cur} ${word}` : word;
+    if (cur && adv(font, next, fs) > maxW) {
+      lines.push(cur);
+      cur = word;
+    } else {
+      cur = next;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
 function popupMock() {
-  // Compact but faithful drawing of the toolbar popup: masthead, pine
-  // site verdict, the four settings, footer. Drawn at 340 CSS px and
-  // scaled by the caller so labels survive the store's 640x400 downscale.
-  const W = 340, H = 448;
-  const row = (y, title, sub, on, tight = false) => {
-    const h = tight ? 46 : 54;
+  // Toolbar popup at the real 340px width, using the popup's labels and
+  // helper copy. Scaled by the caller so type survives 640x400 downscale.
+  const W = 340, H = 500;
+  const row = (y, title, sub, on, { rule = false, h = 62 } = {}) => {
+    const lines = wrapWords(serifItal, sub, 11, 248);
     return `
-    ${y > 214 ? `<rect x="16" y="${y}" width="308" height="1" fill="${HAIRLINE}"/>` : ""}
-    ${textPath(serifSemi, title, 16, y + (tight ? 20 : 24), 13, INK)}
-    ${textPath(serifItal, sub, 16, y + (tight ? 36 : 42), 11, INK_SOFT)}
+    ${rule ? `<rect x="16" y="${y}" width="308" height="1" fill="${HAIRLINE}"/>` : ""}
+    ${textPath(serifSemi, title, 16, y + 20, 13, INK)}
+    ${lines.map((line, i) => textPath(serifItal, line, 16, y + 36 + i * 13, 11, INK_SOFT)).join("")}
     ${switchAt(284, y + (h - 22) / 2, on)}`;
   };
   return { w: W, h: H, svg: `
@@ -332,14 +347,15 @@ function popupMock() {
   </g>
   ${trackedText(mono, "SCROLLING", 16, 186, 9, INK_SOFT, 2).svg}
   <rect x="92" y="182" width="232" height="1" fill="${HAIRLINE}"/>
-  ${row(196, "Block scroll hijacking", "Pages can’t cancel wheel or touch", true)}
-  ${row(250, "Disable scroll effects", "No smooth scroll, snap, or timelines", true)}
-  ${trackedText(mono, "WHILE WE’RE AT IT", 16, 322, 9, INK_SOFT, 2).svg}
-  <rect x="148" y="318" width="176" height="1" fill="${HAIRLINE}"/>
-  ${row(332, "Disable animated cursors", "Normal pointers. No followers", false, true)}
-  ${row(378, "Block autoplay", "Media waits until you press play", false, true)}
-  <rect x="16" y="424" width="308" height="1" fill="${HAIRLINE}"/>
-  ${textPath(serifItal, "Preferences apply on every site", 16, 440, 10, INK_SOFT)}
+  ${row(196, "Block scroll hijacking", "Pages can’t cancel or capture wheel and touch input", true)}
+  ${row(258, "Disable scroll effects", "No smooth scrolling, snap points, or scroll-driven animation", true, { rule: true })}
+  ${trackedText(mono, "WHILE WE’RE AT IT", 16, 340, 9, INK_SOFT, 2).svg}
+  <rect x="148" y="336" width="176" height="1" fill="${HAIRLINE}"/>
+  ${row(350, "Disable animated cursors", "Uses normal pointers and hides cursor followers", false, { h: 54 })}
+  ${row(404, "Block autoplay", "Media waits until you press play", false, { rule: true, h: 54 })}
+  <rect x="16" y="462" width="308" height="1" fill="${HAIRLINE}"/>
+  ${textPath(serifItal, "Preferences apply on every site.", 16, 478, 10, INK_SOFT)}
+  ${textPath(serifItal, "The switch up top only speaks for this one.", 16, 492, 10, INK_SOFT)}
 ` };
 }
 
@@ -369,11 +385,11 @@ function screenshotHeroSVG() {
 
 function screenshotPopupSVG() {
   const popup = popupMock();
-  const scale = 1.52;
+  const scale = 1.42;
   const pw = popup.w * scale;
   const ph = popup.h * scale;
   const px = 1280 - 80 - 22 - pw - 16;
-  const py = Math.round((800 - ph) / 2 + 8);
+  const py = Math.round((800 - ph) / 2);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800">
   ${shotShell({ folioL: "THE TOOLBAR POPUP", folioR: "02  YOUR CONTROLS" })}
   ${withPeriod(serifSemi, "Your panel", 80, 280, 72, INK)}
@@ -389,8 +405,8 @@ function screenshotScrollingSVG() {
   ${shotShell({ folioL: "SCROLLING", folioR: "03  THE WHEEL IS YOURS" })}
   ${withPeriod(serifSemi, "The wheel is yours", 80, 230, 64, INK)}
   ${withPeriod(serifItal, "Pages don’t get to cancel it", 84, 292, 26, PINE_TEXT)}
-  ${settingCard(80, 360, 1116, 150, "Block scroll hijacking", "Wheel and touch input stay with you", true)}
-  ${settingCard(80, 534, 1116, 150, "Disable scroll effects", "No smooth scrolling, snap points, or timelines", true)}
+  ${settingCard(80, 360, 1116, 150, "Block scroll hijacking", "Pages can’t cancel or capture wheel and touch input", true)}
+  ${settingCard(80, 534, 1116, 150, "Disable scroll effects", "No smooth scrolling, snap points, or scroll-driven animation", true)}
 </svg>
 `;
 }
@@ -439,8 +455,9 @@ async function png(svgRel, outRel, w, h, { flatten } = {}) {
   const buf = readFileSync(join(WT, svgRel));
   const d = 72 * (w / parseFloat(String(buf).match(/viewBox="0 0 (\d+(?:\.\d+)?)/)[1]));
   let img = sharp(buf, { density: Math.max(d, 1) }).resize(w, h);
-  // Chrome Web Store listing images must be 24-bit (no alpha). Icons keep
-  // transparency so they still work on light and dark toolbar chips.
+  // Listing screenshots must be 24-bit (no alpha). Icons keep transparency
+  // so they still work on light and dark toolbar chips. Banner and tile
+  // stay on the historical raster path so a rebuild does not rewrite them.
   if (flatten) img = img.flatten({ background: flatten });
   await img.png().toFile(join(WT, outRel));
 }
@@ -450,8 +467,8 @@ await png("icons/icon.svg", "icons/icon-128.png", 128, 128);
 await png("icons/icon.svg", "icons/icon-48.png", 48, 48);
 await png("icons/icon.svg", "icons/icon-32.png", 32, 32);
 await png("icons/icon-16.svg", "icons/icon-16.png", 16, 16);
-await png("store/banner-1400x560.svg", "store/banner-1400x560.png", 1400, 560, { flatten: paper });
-await png("store/tile-440x280.svg", "store/tile-440x280.png", 440, 280, { flatten: paper });
+await png("store/banner-1400x560.svg", "store/banner-1400x560.png", 1400, 560);
+await png("store/tile-440x280.svg", "store/tile-440x280.png", 440, 280);
 for (const shot of [
   "screenshot-1280x800-01-hero",
   "screenshot-1280x800-02-popup",

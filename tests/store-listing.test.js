@@ -7,6 +7,13 @@ const storeDir = join(import.meta.dir, "../store");
 // Chrome Web Store listing screenshots:
 // https://developer.chrome.com/docs/webstore/images
 const ALLOWED_SIZES = new Set(["1280x800", "640x400"]);
+const EXPECTED_SHOTS = [
+  "screenshot-1280x800-01-hero.png",
+  "screenshot-1280x800-02-popup.png",
+  "screenshot-1280x800-03-scrolling.png",
+  "screenshot-1280x800-04-per-site.png",
+  "screenshot-1280x800-05-extras.png",
+];
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const JPEG_SIG = Buffer.from([0xff, 0xd8, 0xff]);
 
@@ -51,21 +58,35 @@ function readJpegSize(buf) {
   return null;
 }
 
+function pngHasTransparency(buf) {
+  const header = readPngHeader(buf);
+  if (!header) return false;
+  if (header.colorType === 4 || header.colorType === 6) return true;
+  let offset = 8;
+  while (offset + 12 <= buf.length) {
+    const length = buf.readUInt32BE(offset);
+    const type = buf.subarray(offset + 4, offset + 8).toString("ascii");
+    if (type === "tRNS") return true;
+    if (type === "IEND") break;
+    offset += 12 + length;
+  }
+  return false;
+}
+
 function inspectListingImage(path) {
   const buf = readFileSync(path);
   const png = readPngHeader(buf);
-  if (png) return { path, ...png };
+  if (png) return { path, buf, ...png };
   const jpeg = readJpegSize(buf);
-  if (jpeg) return { path, ...jpeg };
+  if (jpeg) return { path, buf, ...jpeg };
   return { path, format: "unknown" };
 }
 
 describe("Chrome Web Store screenshots", () => {
   const files = listingScreenshots();
 
-  test("provides between 1 and 5 listing screenshots", () => {
-    expect(files.length).toBeGreaterThanOrEqual(1);
-    expect(files.length).toBeLessThanOrEqual(5);
+  test("provides the five 1280x800 listing screenshots", () => {
+    expect(files.map((file) => file.slice(storeDir.length + 1))).toEqual(EXPECTED_SHOTS);
   });
 
   test("each screenshot is 1280x800 or 640x400 JPEG or 24-bit PNG without alpha", () => {
@@ -73,11 +94,13 @@ describe("Chrome Web Store screenshots", () => {
     for (const file of files) {
       const image = inspectListingImage(file);
       expect(ALLOWED_SIZES.has(`${image.width}x${image.height}`), file).toBe(true);
+      expect(`${image.width}x${image.height}`, file).toBe("1280x800");
 
       if (image.format === "png") {
         expect(image.bitDepth, file).toBe(8);
         // 2 = truecolor RGB. 6 would be RGBA (alpha is rejected by the store).
         expect(image.colorType, file).toBe(2);
+        expect(pngHasTransparency(image.buf), file).toBe(false);
       } else if (image.format === "jpeg") {
         expect(image.components, file).toBe(3);
       } else {
