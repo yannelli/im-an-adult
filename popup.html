@@ -7,52 +7,54 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <img src="icons/icon-48.png" alt="" width="40" height="40" />
-      <div>
-        <h1>I'm an Adult</h1>
-        <p>Let me scroll.</p>
-      </div>
+    <header class="masthead">
+      <h1><img src="assets/logo.svg" alt="I’m an Adult." /></h1>
+      <p class="tagline">Let me scroll<span class="dot">.</span></p>
     </header>
 
-    <main>
-      <label class="site-control">
-        <span>
-          <strong>Enabled on this site</strong>
-          <small id="site-name">Current site</small>
-        </span>
-        <input id="site-enabled" type="checkbox" role="switch" checked />
-      </label>
+    <label class="site" id="site-panel" data-state="active" for="site-enabled">
+      <span class="site-info">
+        <span class="overline">This site</span>
+        <span class="hostname" id="site-name">&hellip;</span>
+        <span class="site-status" id="site-status"></span>
+      </span>
+      <input id="site-enabled" type="checkbox" role="switch" checked />
+    </label>
 
-      <section aria-labelledby="scroll-heading">
-        <h2 id="scroll-heading">Scrolling</h2>
-        <label>
+    <main>
+      <section class="group" aria-labelledby="scroll-heading">
+        <h2 class="overline rule" id="scroll-heading">Scrolling</h2>
+        <label class="row">
           <span>
             <strong>Block scroll hijacking</strong>
-            <small>Sites cannot cancel wheel or touch scrolling</small>
+            <small>Pages can&rsquo;t cancel or capture wheel and touch input</small>
           </span>
           <input id="block-hijacking" type="checkbox" role="switch" checked />
         </label>
-        <label>
+        <label class="row">
           <span>
             <strong>Disable scroll effects</strong>
-            <small>Removes smooth scroll, snapping, and scroll timelines</small>
+            <small>No smooth scrolling, snap points, or scroll-driven animation</small>
           </span>
           <input id="disable-scroll-effects" type="checkbox" role="switch" checked />
         </label>
       </section>
 
-      <section aria-labelledby="other-heading">
-        <h2 id="other-heading">Other annoyances</h2>
-        <label>
+      <section class="group group-secondary" aria-labelledby="media-heading">
+        <h2 class="overline rule" id="media-heading">While we&rsquo;re at it</h2>
+        <label class="row">
           <span>
             <strong>Block autoplay</strong>
-            <small>Pauses media until you interact with the page</small>
+            <small>Media waits until you press play</small>
           </span>
           <input id="block-autoplay" type="checkbox" role="switch" />
         </label>
       </section>
     </main>
+
+    <footer>
+      <p>Preferences apply on every site. The switch up top only speaks for this one.</p>
+    </footer>
 
     <script src="popup.js" type="module"></script>
   </body>

@@ -14,7 +14,8 @@ const referencedFiles = [
   ]),
 ];
 
-await Promise.all([...new Set(referencedFiles)].map((file) => access(file)));
+const extraFiles = ["assets/logo.svg", "icons/icon.svg", "icons/icon-16.svg"];
+await Promise.all([...new Set([...referencedFiles, ...extraFiles])].map((file) => access(file)));
 
 for (const file of ["content-main.js", "content-isolated.js", "popup.js"]) {
   const result = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" });

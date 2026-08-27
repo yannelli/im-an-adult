@@ -1,5 +1,7 @@
 # I'm an Adult
 
+<img src="assets/logo.svg" alt="I’m an Adult." height="56">
+
 A Chrome extension that gives scrolling back to the user.
 
 By default it:

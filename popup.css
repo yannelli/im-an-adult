@@ -1,8 +1,38 @@
+/* I'm an Adult — popup
+   Editorial control panel on the "Scrolling. Period." brand:
+   cream paper, pine, terracotta full stops. Serif is reserved
+   for the masthead and status verdicts; everything operable
+   is set in the system sans. */
+
 :root {
-  color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #17231d;
-  background: #f3f1e8;
+  --paper: #f3f1e8;
+  --ink: #17231d;
+  --muted: #4a544d;
+  --hairline: rgb(23 35 29 / 16%);
+  --green: #1b4a33;
+  --green-deep: #123525;
+  --cream: #f3f1e8;
+  --brick: #eb5c3f;
+  --serif: "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  color-scheme: light dark;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #181c19;
+    --ink: #e9e7db;
+    --muted: #9aa39c;
+    --hairline: rgb(233 231 219 / 18%);
+    --green: #266a4b;
+    --green-deep: #143424;
+    --brick: #e0714f;
+  }
 }
 
 * {
@@ -10,23 +40,9 @@
 }
 
 body {
-  width: 360px;
+  width: 340px;
   margin: 0;
-  background:
-    radial-gradient(circle at 100% 0, rgb(235 92 63 / 14%), transparent 42%),
-    #f3f1e8;
-}
-
-header {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 20px 20px 16px;
-}
-
-header img {
-  border-radius: 12px;
-  box-shadow: 0 5px 14px rgb(35 51 42 / 18%);
+  background: var(--paper);
 }
 
 h1,
@@ -35,117 +51,258 @@ p {
   margin: 0;
 }
 
-h1 {
-  font-size: 19px;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+/* ---- Masthead ---- */
+
+.masthead {
+  margin: 0 16px;
+  padding: 16px 0 10px;
+  border-bottom: 3px double var(--ink);
 }
 
-header p {
-  margin-top: 2px;
-  color: #657069;
-  font-size: 13px;
-}
-
-main {
-  padding: 0 12px 12px;
-}
-
-section,
-.site-control {
+.masthead h1 img {
   display: block;
-  margin: 0 0 10px;
-  overflow: hidden;
-  border: 1px solid rgb(23 35 29 / 10%);
-  border-radius: 14px;
-  background: rgb(255 255 255 / 72%);
-  box-shadow: 0 3px 12px rgb(35 51 42 / 5%);
+  width: auto;
+  height: 32px;
 }
 
-section h2 {
-  padding: 11px 14px 7px;
-  color: #7a817d;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.tagline {
+  margin-top: 6px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: #2e5b43;
 }
 
-label {
+.tagline .dot {
+  color: var(--brick);
+}
+
+@media (prefers-color-scheme: dark) {
+  .tagline {
+    color: #8fbfa3;
+  }
+}
+
+/* ---- Site panel: the verdict ---- */
+
+.site {
   display: flex;
-  min-height: 62px;
-  padding: 12px 14px;
-  gap: 14px;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
   cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
 }
 
-section label + label {
-  border-top: 1px solid rgb(23 35 29 / 8%);
-}
-
-label span {
+.site-info {
   min-width: 0;
 }
 
-strong,
-small {
+.overline {
   display: block;
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-strong {
-  font-size: 13px;
-  font-weight: 680;
+.hostname {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-small {
+.site-status {
+  display: block;
   margin-top: 3px;
-  color: #727b76;
-  font-size: 11px;
-  line-height: 1.35;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--muted);
 }
+
+/* Site under control: the whole panel goes pine. */
+.site[data-state="active"] {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--cream);
+}
+
+.site[data-state="active"] .overline {
+  color: rgb(243 241 232 / 65%);
+}
+
+.site[data-state="active"] .site-status {
+  color: rgb(243 241 232 / 85%);
+}
+
+/* Paused: back to paper, verdict in terracotta. */
+.site[data-state="paused"] .site-status {
+  color: var(--brick);
+}
+
+/* Not a website: intentionally inert. */
+.site[data-state="unavailable"] {
+  border-style: dashed;
+  cursor: default;
+  color: var(--muted);
+}
+
+.site[data-state="unavailable"] .hostname {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+/* ---- Settings ---- */
+
+main {
+  padding: 4px 16px 0;
+}
+
+.group {
+  margin-top: 12px;
+}
+
+.overline.rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.overline.rule::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--hairline);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 54px;
+  padding: 9px 0;
+  cursor: pointer;
+}
+
+.row + .row {
+  border-top: 1px solid var(--hairline);
+}
+
+.row > span {
+  min-width: 0;
+}
+
+.row strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.row small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.group-secondary .row {
+  min-height: 46px;
+  padding: 7px 0;
+}
+
+/* ---- Switches: breaker-style, squared ---- */
 
 input[role="switch"] {
-  width: 38px;
+  flex: 0 0 auto;
+  width: 40px;
   height: 22px;
   margin: 0;
-  flex: 0 0 auto;
   appearance: none;
-  border: 1px solid #abb2ae;
-  border-radius: 999px;
-  background: #c5cac7;
+  border: 1px solid var(--muted);
+  border-radius: 5px;
+  background: transparent;
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease;
 }
 
 input[role="switch"]::after {
-  display: block;
-  width: 16px;
-  height: 16px;
-  margin: 2px;
-  border-radius: 50%;
-  background: white;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
   content: "";
-  transition: transform 120ms ease;
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 3px;
+  border-radius: 3px;
+  background: var(--muted);
+  transition: transform 120ms ease, background 120ms ease;
 }
 
 input[role="switch"]:checked {
-  border-color: #206244;
-  background: #267653;
+  border-color: var(--green);
+  background: var(--green);
 }
 
 input[role="switch"]:checked::after {
-  transform: translateX(16px);
+  background: var(--cream);
+  transform: translateX(18px);
+}
+
+/* On the pine panel, the switch inverts. */
+.site[data-state="active"] input[role="switch"] {
+  border-color: var(--cream);
+  background: var(--cream);
+}
+
+.site[data-state="active"] input[role="switch"]:checked::after {
+  background: var(--green-deep);
 }
 
 input[role="switch"]:focus-visible {
-  outline: 3px solid rgb(235 92 63 / 35%);
+  outline: 2px solid var(--brick);
   outline-offset: 2px;
 }
 
 input[role="switch"]:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+input[role="switch"]:disabled::after {
+  visibility: hidden;
+}
+
+/* ---- Footer ---- */
+
+footer {
+  margin: 12px 16px 0;
+  padding: 8px 0 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+footer p {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site,
+  input[role="switch"],
+  input[role="switch"]::after {
+    transition: none;
+  }
 }
