@@ -1,4 +1,8 @@
 import { readFile, access } from "node:fs/promises";
+import { assertVersionsMatch, readProjectVersions } from "./versions.mjs";
+
+const versions = readProjectVersions(".");
+assertVersionsMatch(versions.package, versions.manifest);
 
 const manifest = JSON.parse(await readFile("manifest.json", "utf8"));
 if (manifest.manifest_version !== 3) throw new Error("Manifest must use version 3");

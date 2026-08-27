@@ -6,6 +6,9 @@
   "packageManager": "bun@1.3.14",
   "scripts": {
     "test": "bun test",
-    "check": "bun test && bun scripts/check.mjs"
+    "check": "bun test && bun scripts/check.mjs",
+    "lint:commit": "bun scripts/lint-commit.mjs",
+    "package": "bun scripts/package-extension.mjs",
+    "release": "bun scripts/release.mjs"
   }
 }
