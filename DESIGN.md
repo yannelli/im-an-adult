@@ -69,6 +69,8 @@ its edge on both.
 The popup is an editorial control panel on this palette. The masthead uses
 `assets/logo.svg` inside the `<h1>` (alt text carries the name), with a
 Georgia-italic “Let me scroll.” aside ending in a terracotta period. The
+lockup wordmark is ink; a `prefers-color-scheme: dark` rule inside the SVG
+flips those paths to `#e9e7db` so the header stays readable on dark paper. The
 per-site control is a verdict panel — pine when the site is under control,
 paper with a terracotta verdict when paused, dashed and inert on Chrome
 pages. Settings sit as flat hairline rows; autoplay is secondary. Switch

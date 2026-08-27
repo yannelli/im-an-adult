@@ -37,6 +37,7 @@ const mono = loadFont("IBMPlexMono-Medium.ttf");
 const CREAM = "#F3F1E8";
 const CREAM_DIM = "#E4E0CF";   // scrollbar tracks, quiet panels
 const INK = "#17231D";
+const INK_ON_DARK = "#e9e7db"; // matches popup.css --ink in dark mode
 const INK_SOFT = "#4A544D";    // secondary text
 const PINE = "#1B4A33";        // icon field
 const TERRA = "#EB5C3F";       // the period
@@ -140,6 +141,11 @@ function logoSVG() {
   const W = Math.ceil(textX + nameW + dotW + pad + 2);
   const s = tile / 128;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="I’m an Adult.">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      path[fill="${INK}"] { fill: ${INK_ON_DARK}; }
+    }
+  </style>
   <g transform="translate(${pad} ${pad})">
     <rect width="${tile}" height="${tile}" rx="${Math.round(30 * s)}" fill="${PINE}"/>
     <g transform="scale(${s})">${mark128(true)}</g>
