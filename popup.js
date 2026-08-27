@@ -11,6 +11,19 @@ const controls = {
 };
 const siteEnabled = document.querySelector("#site-enabled");
 const siteName = document.querySelector("#site-name");
+const sitePanel = document.querySelector("#site-panel");
+const siteStatus = document.querySelector("#site-status");
+
+const SITE_STATES = {
+  active: "Under your control.",
+  paused: "Doing whatever it wants.",
+  unavailable: "Chrome keeps its own pages off-limits.",
+};
+
+function renderSiteState(state) {
+  sitePanel.dataset.state = state;
+  siteStatus.textContent = SITE_STATES[state];
+}
 
 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 let hostname = "";
@@ -37,7 +50,9 @@ for (const [key, control] of Object.entries(controls)) {
 if (hostname) {
   siteName.textContent = hostname;
   siteEnabled.checked = !disabledSites[hostname];
+  renderSiteState(siteEnabled.checked ? "active" : "paused");
   siteEnabled.addEventListener("change", async () => {
+    renderSiteState(siteEnabled.checked ? "active" : "paused");
     disabledSites = { ...disabledSites };
     if (siteEnabled.checked) {
       delete disabledSites[hostname];
@@ -47,7 +62,8 @@ if (hostname) {
     await chrome.storage.sync.set({ disabledSites });
   });
 } else {
-  siteName.textContent = "Unavailable on this page";
+  siteName.textContent = "Not a website";
   siteEnabled.checked = false;
   siteEnabled.disabled = true;
+  renderSiteState("unavailable");
 }
