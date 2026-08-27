@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   chromeWebStoreUrls,
+  isSameVersionUploadError,
+  matchingStoreRevision,
   normalizePublishType,
   publishChromeWebStore,
   requireChromeWebStoreCredentials,
@@ -59,6 +61,15 @@ function mockFetch(queue) {
   return { fetchImpl, calls };
 }
 
+function olderPublishedStatus() {
+  return {
+    publishedItemRevisionStatus: {
+      state: "PUBLISHED",
+      distributionChannels: [{ crxVersion: "0.1.0" }],
+    },
+  };
+}
+
 describe("requireChromeWebStoreCredentials", () => {
   test("requires the Chrome Web Store API secrets", () => {
     expect(() => requireChromeWebStoreCredentials({})).toThrow(/CHROME_EXTENSION_ID/);
@@ -104,12 +115,45 @@ describe("versionFromReleaseTag", () => {
 });
 
 describe("normalizePublishType", () => {
-  test("maps store targets to the v2 publishType values", () => {
+  test("maps store targets to the official v2 publishType values", () => {
     expect(normalizePublishType()).toBe("DEFAULT_PUBLISH");
     expect(normalizePublishType("default")).toBe("DEFAULT_PUBLISH");
-    expect(normalizePublishType("trustedTesters")).toBe("TRUSTED_TESTERS");
     expect(normalizePublishType("STAGED_PUBLISH")).toBe("STAGED_PUBLISH");
+    expect(normalizePublishType("staged")).toBe("STAGED_PUBLISH");
+    expect(() => normalizePublishType("trustedTesters")).toThrow(/publish/i);
     expect(() => normalizePublishType("public")).toThrow(/publish/i);
+  });
+});
+
+describe("matchingStoreRevision", () => {
+  test("finds a submitted or published revision for the release version", () => {
+    expect(
+      matchingStoreRevision(
+        {
+          submittedItemRevisionStatus: {
+            state: "PENDING_REVIEW",
+            distributionChannels: [{ crxVersion: "0.2.0" }],
+          },
+        },
+        "0.2.0",
+      ),
+    ).toMatchObject({ state: "PENDING_REVIEW" });
+    expect(
+      matchingStoreRevision(
+        { publishedItemRevisionStatus: { state: "PUBLISHED", crxVersion: "0.2.0" } },
+        "0.2.0",
+      ),
+    ).toMatchObject({ state: "PUBLISHED" });
+    expect(matchingStoreRevision(olderPublishedStatus(), "0.2.0")).toBeNull();
+  });
+});
+
+describe("isSameVersionUploadError", () => {
+  test("detects same-version upload conflicts and ignores version-too-low errors", () => {
+    expect(isSameVersionUploadError("This version has already been uploaded")).toBe(true);
+    expect(isSameVersionUploadError("Item version already exists")).toBe(true);
+    expect(isSameVersionUploadError("Version number must be increased")).toBe(false);
+    expect(isSameVersionUploadError("invalid_grant")).toBe(false);
   });
 });
 
@@ -118,12 +162,13 @@ describe("publishChromeWebStore", () => {
     const zipPath = writeZipWithManifest("0.2.0");
     const { fetchImpl, calls } = mockFetch([
       jsonResponse(200, { access_token: "ya29.access" }),
+      jsonResponse(200, olderPublishedStatus()),
       jsonResponse(200, { uploadState: "SUCCEEDED", crxVersion: "0.2.0", itemId: CREDENTIALS.CHROME_EXTENSION_ID }),
       jsonResponse(200, { state: "PENDING_REVIEW", itemId: CREDENTIALS.CHROME_EXTENSION_ID }),
     ]);
 
     const result = await publishChromeWebStore({
-      env: CREDENTIALS,
+      env: { ...CREDENTIALS, CHROME_PUBLISH_TARGET: "STAGED_PUBLISH" },
       zipPath,
       tag: "v0.2.0",
       fetchImpl,
@@ -139,14 +184,15 @@ describe("publishChromeWebStore", () => {
     expect(calls[0].init.body).toContain("grant_type=refresh_token");
     expect(calls[0].init.body).toContain("refresh_token=refresh-token");
 
-    expect(calls[1].url).toContain(":upload");
-    expect(calls[1].init.method).toBe("POST");
-    expect(calls[1].init.headers.Authorization).toBe("Bearer ya29.access");
-    expect(calls[1].init.headers["X-Goog-Upload-Protocol"]).toBe("raw");
-    expect(calls[1].init.body.byteLength).toBeGreaterThan(0);
+    expect(calls[1].url).toContain(":fetchStatus");
+    expect(calls[2].url).toContain(":upload");
+    expect(calls[2].init.method).toBe("POST");
+    expect(calls[2].init.headers.Authorization).toBe("Bearer ya29.access");
+    expect(calls[2].init.headers["X-Goog-Upload-Protocol"]).toBe("raw");
+    expect(calls[2].init.body.byteLength).toBeGreaterThan(0);
 
-    expect(calls[2].url).toContain(":publish");
-    expect(JSON.parse(calls[2].init.body)).toEqual({ publishType: "DEFAULT_PUBLISH" });
+    expect(calls[3].url).toContain(":publish");
+    expect(JSON.parse(calls[3].init.body)).toEqual({ publishType: "STAGED_PUBLISH" });
   });
 
   test("polls fetchStatus when the upload is still in progress", async () => {
@@ -154,7 +200,8 @@ describe("publishChromeWebStore", () => {
     let slept = 0;
     const { fetchImpl } = mockFetch([
       jsonResponse(200, { access_token: "ya29.access" }),
-      jsonResponse(200, { uploadState: "IN_PROGRESS" }),
+      jsonResponse(200, olderPublishedStatus()),
+      jsonResponse(200, { uploadState: "UPLOAD_IN_PROGRESS" }),
       jsonResponse(200, { lastAsyncUploadState: "SUCCEEDED", itemId: CREDENTIALS.CHROME_EXTENSION_ID }),
       jsonResponse(200, { state: "PUBLISHED", itemId: CREDENTIALS.CHROME_EXTENSION_ID }),
     ]);
@@ -170,6 +217,55 @@ describe("publishChromeWebStore", () => {
 
     expect(result.action).toBe("published");
     expect(slept).toBeGreaterThan(0);
+  });
+
+  test("skips upload when this version is already on the store", async () => {
+    const zipPath = writeZipWithManifest("0.2.0");
+    const { fetchImpl, calls } = mockFetch([
+      jsonResponse(200, { access_token: "ya29.access" }),
+      jsonResponse(200, {
+        submittedItemRevisionStatus: {
+          state: "PENDING_REVIEW",
+          distributionChannels: [{ crxVersion: "0.2.0" }],
+        },
+      }),
+    ]);
+
+    const result = await publishChromeWebStore({
+      env: CREDENTIALS,
+      zipPath,
+      tag: "v0.2.0",
+      fetchImpl,
+    });
+
+    expect(result.action).toBe("published");
+    expect(result.alreadyPresent).toBe(true);
+    expect(result.publish.state).toBe("PENDING_REVIEW");
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://oauth2.googleapis.com/token",
+      "https://chromewebstore.googleapis.com/v2/publishers/publisher-123/items/abcdefghijklmnopabcdefghijklmnop:fetchStatus",
+    ]);
+  });
+
+  test("publishes an already-uploaded draft when the same version is rejected", async () => {
+    const zipPath = writeZipWithManifest("0.2.0");
+    const { fetchImpl, calls } = mockFetch([
+      jsonResponse(200, { access_token: "ya29.access" }),
+      jsonResponse(200, olderPublishedStatus()),
+      jsonResponse(400, { error: { message: "This version has already been uploaded" } }),
+      jsonResponse(200, { state: "PENDING_REVIEW", itemId: CREDENTIALS.CHROME_EXTENSION_ID }),
+    ]);
+
+    const result = await publishChromeWebStore({
+      env: CREDENTIALS,
+      zipPath,
+      tag: "v0.2.0",
+      fetchImpl,
+    });
+
+    expect(result.action).toBe("published");
+    expect(result.upload.reused).toBe(true);
+    expect(calls.at(-1).url).toContain(":publish");
   });
 
   test("does not publish when the zip version does not match the release tag", async () => {
@@ -191,6 +287,7 @@ describe("publishChromeWebStore", () => {
     const zipPath = writeZipWithManifest("0.2.0");
     const { fetchImpl, calls } = mockFetch([
       jsonResponse(200, { access_token: "ya29.access" }),
+      jsonResponse(200, olderPublishedStatus()),
       jsonResponse(200, { uploadState: "FAILED" }),
     ]);
 
@@ -201,7 +298,24 @@ describe("publishChromeWebStore", () => {
         fetchImpl,
       }),
     ).rejects.toThrow(/upload/i);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
+    expect(calls.some((call) => call.url.includes(":publish"))).toBe(false);
+  });
+
+  test("rejects a publish response with no success state", async () => {
+    const zipPath = writeZipWithManifest("0.2.0");
+    await expect(
+      publishChromeWebStore({
+        env: CREDENTIALS,
+        zipPath,
+        fetchImpl: mockFetch([
+          jsonResponse(200, { access_token: "ya29.access" }),
+          jsonResponse(200, olderPublishedStatus()),
+          jsonResponse(200, { uploadState: "SUCCEEDED", crxVersion: "0.2.0" }),
+          jsonResponse(200, {}),
+        ]).fetchImpl,
+      }),
+    ).rejects.toThrow(/publish/i);
   });
 
   test("surfaces token and API errors", async () => {
@@ -225,6 +339,19 @@ describe("publishChromeWebStore", () => {
       },
     });
     expect(result).toEqual({ action: "skip" });
+  });
+
+  test("fails a workflow_dispatch retry with a non-semver tag", async () => {
+    await expect(
+      publishChromeWebStore({
+        env: { ...CREDENTIALS, GITHUB_EVENT_NAME: "workflow_dispatch" },
+        zipPath: writeZipWithManifest("0.2.0"),
+        tag: "nightly",
+        fetchImpl: async () => {
+          throw new Error("should not call the store API");
+        },
+      }),
+    ).rejects.toThrow(/semver/i);
   });
 });
 
@@ -254,17 +381,19 @@ describe("publish CLI", () => {
 
 describe("chrome web store workflow", () => {
   test("publishes after a GitHub Release and can be retried by tag", () => {
-    const workflow = spawnSync("cat", [join(root, ".github/workflows/chrome-web-store.yml")], { encoding: "utf8" });
-    expect(workflow.status).toBe(0);
-    expect(workflow.stdout).toMatch(/release:\s*\n\s*types:\s*\n\s*-\s*published/m);
-    expect(workflow.stdout).toContain("workflow_dispatch");
-    expect(workflow.stdout).toContain("im-an-adult-*.zip");
-    expect(workflow.stdout).toContain("publish-chrome-web-store.mjs");
-    expect(workflow.stdout).toContain("CHROME_EXTENSION_ID");
-    expect(workflow.stdout).toContain("CHROME_PUBLISHER_ID");
-    expect(workflow.stdout).toContain("CHROME_CLIENT_ID");
-    expect(workflow.stdout).toContain("CHROME_CLIENT_SECRET");
-    expect(workflow.stdout).toContain("CHROME_REFRESH_TOKEN");
-    expect(workflow.stdout).not.toMatch(/prerelease: true/);
+    const workflow = readFileSync(join(root, ".github/workflows/chrome-web-store.yml"), "utf8");
+    expect(workflow).toMatch(/release:\s*\n\s*types:\s*\n\s*-\s*published/m);
+    expect(workflow).toContain("workflow_dispatch");
+    expect(workflow).toContain("github.event_name == 'workflow_dispatch' || !github.event.release.prerelease");
+    expect(workflow).toMatch(/v\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+/);
+    expect(workflow).toContain("im-an-adult-${TAG#v}.zip");
+    expect(workflow).toContain("publish-chrome-web-store.mjs");
+    expect(workflow).toContain("CHROME_EXTENSION_ID");
+    expect(workflow).toContain("CHROME_PUBLISHER_ID");
+    expect(workflow).toContain("CHROME_CLIENT_ID");
+    expect(workflow).toContain("CHROME_CLIENT_SECRET");
+    expect(workflow).toContain("CHROME_REFRESH_TOKEN");
+    expect(workflow).toContain("RELEASE_TAG");
+    expect(workflow).toContain("contents: read");
   });
 });

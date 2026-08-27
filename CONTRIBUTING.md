@@ -105,7 +105,7 @@ The first successful run on `main` tags `v0.1.0` if no version tags exist yet. L
 
 ## Chrome Web Store
 
-After each SemVer GitHub Release is published, CI uploads the release zip and submits it for Chrome Web Store review. The listing must already exist; the API cannot create a new item.
+After each SemVer GitHub Release is published, CI uploads the release zip and submits it for Chrome Web Store review. The listing must already exist; the API cannot create a new item. Until the secrets below are set, that follow-up job fails on the next SemVer release. Prereleases and non-`vX.Y.Z` tags are skipped.
 
 One-time setup:
 
@@ -124,6 +124,6 @@ One-time setup:
 | `CHROME_CLIENT_SECRET` | OAuth client secret |
 | `CHROME_REFRESH_TOKEN` | OAuth refresh token |
 
-Optional repository variable `CHROME_PUBLISH_TARGET`: `trustedTesters` or `STAGED_PUBLISH`. Unset means default production publish.
+Optional repository variable `CHROME_PUBLISH_TARGET`: `STAGED_PUBLISH` to stage after review. Unset means default production publish. Trusted-tester visibility is set on the listing, not by this variable.
 
-To retry a release, run **Actions → Chrome Web Store → Run workflow** and enter the tag (`vX.Y.Z`).
+To retry a release, run **Actions → Chrome Web Store → Run workflow** and enter the tag (`vX.Y.Z`). A retry is safe if that version was already uploaded or is pending review.
