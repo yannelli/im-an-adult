@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 364 60" role="img" aria-label="I’m an Adult.">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      path[fill="#17231D"] { fill: #e9e7db; }
+    }
+  </style>
   <g transform="translate(2 2)">
     <rect width="56" height="56" rx="13" fill="#1B4A33"/>
     <g transform="scale(0.4375)">
