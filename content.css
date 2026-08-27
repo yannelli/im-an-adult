@@ -4,3 +4,12 @@ html:not(#ima-force-page-scroll-1):not(#ima-force-page-scroll-2):not(#ima-force-
   scroll-snap-type: none !important;
   animation-timeline: auto !important;
 }
+
+html:not(#ima-force-page-cursor-1):not(#ima-force-page-cursor-2):not(#ima-force-page-cursor-3):not(#ima-force-page-cursor-4):not([data-ima-enabled="false"])[data-ima-disable-animated-cursors="true"],
+html:not(#ima-force-page-cursor-1):not(#ima-force-page-cursor-2):not(#ima-force-page-cursor-3):not(#ima-force-page-cursor-4):not([data-ima-enabled="false"])[data-ima-disable-animated-cursors="true"] * {
+  cursor: auto !important;
+}
+
+html:not(#ima-force-page-cursor-1):not(#ima-force-page-cursor-2):not(#ima-force-page-cursor-3):not(#ima-force-page-cursor-4):not([data-ima-enabled="false"])[data-ima-disable-animated-cursors="true"] [data-ima-cursor-overlay="true"] {
+  display: none !important;
+}

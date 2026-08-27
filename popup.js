@@ -1,12 +1,14 @@
 const DEFAULT_SETTINGS = {
   blockHijacking: true,
   disableScrollEffects: true,
+  disableAnimatedCursors: false,
   blockAutoplay: false,
 };
 
 const controls = {
   blockHijacking: document.querySelector("#block-hijacking"),
   disableScrollEffects: document.querySelector("#disable-scroll-effects"),
+  disableAnimatedCursors: document.querySelector("#disable-animated-cursors"),
   blockAutoplay: document.querySelector("#block-autoplay"),
 };
 const siteEnabled = document.querySelector("#site-enabled");
