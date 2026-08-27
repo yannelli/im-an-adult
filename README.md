@@ -22,13 +22,18 @@ Reload open tabs after installing the extension or changing a setting. Chrome do
 
 ## Development
 
-Requires [Bun](https://bun.sh). Run the local validation:
+Requires [Bun](https://bun.sh).
 
 ```sh
 bun run check
+bun test
 ```
 
 The extension uses Manifest V3 and requires Chrome 111 or newer because its earliest content script runs in the page's `MAIN` world. This lets it intercept scroll cancellation before site JavaScript can cache the native event methods.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the commit standard, SemVer policy, and release setup. Published versions are listed in [CHANGELOG.md](CHANGELOG.md) and on [Releases](https://github.com/yannelli/im-an-adult/releases).
 
 ## Limits
 
