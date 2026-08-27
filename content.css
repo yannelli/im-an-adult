@@ -1,0 +1,6 @@
+html:not(#ima-force-page-scroll-1):not(#ima-force-page-scroll-2):not(#ima-force-page-scroll-3):not(#ima-force-page-scroll-4):not([data-ima-enabled="false"]):not([data-ima-disable-scroll-effects="false"]),
+html:not(#ima-force-page-scroll-1):not(#ima-force-page-scroll-2):not(#ima-force-page-scroll-3):not(#ima-force-page-scroll-4):not([data-ima-enabled="false"]):not([data-ima-disable-scroll-effects="false"]) * {
+  scroll-behavior: auto !important;
+  scroll-snap-type: none !important;
+  animation-timeline: auto !important;
+}

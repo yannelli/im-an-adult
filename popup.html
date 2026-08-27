@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>I'm an Adult</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon-48.png" alt="" width="40" height="40" />
+      <div>
+        <h1>I'm an Adult</h1>
+        <p>Let me scroll.</p>
+      </div>
+    </header>
+
+    <main>
+      <label class="site-control">
+        <span>
+          <strong>Enabled on this site</strong>
+          <small id="site-name">Current site</small>
+        </span>
+        <input id="site-enabled" type="checkbox" role="switch" checked />
+      </label>
+
+      <section aria-labelledby="scroll-heading">
+        <h2 id="scroll-heading">Scrolling</h2>
+        <label>
+          <span>
+            <strong>Block scroll hijacking</strong>
+            <small>Sites cannot cancel wheel or touch scrolling</small>
+          </span>
+          <input id="block-hijacking" type="checkbox" role="switch" checked />
+        </label>
+        <label>
+          <span>
+            <strong>Disable scroll effects</strong>
+            <small>Removes smooth scroll, snapping, and scroll timelines</small>
+          </span>
+          <input id="disable-scroll-effects" type="checkbox" role="switch" checked />
+        </label>
+      </section>
+
+      <section aria-labelledby="other-heading">
+        <h2 id="other-heading">Other annoyances</h2>
+        <label>
+          <span>
+            <strong>Block autoplay</strong>
+            <small>Pauses media until you interact with the page</small>
+          </span>
+          <input id="block-autoplay" type="checkbox" role="switch" />
+        </label>
+      </section>
+    </main>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

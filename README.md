@@ -1,0 +1,33 @@
+# I'm an Adult
+
+A Chrome extension that gives scrolling back to the user.
+
+By default it:
+
+- prevents pages from cancelling wheel and touch scrolling
+- removes smooth scrolling and scroll snapping
+- disconnects CSS and JavaScript scroll-driven animation timelines
+
+The toolbar popup can pause the extension per site. It also has an optional autoplay blocker that pauses media until the user interacts with the page.
+
+## Install locally
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select this directory.
+
+Reload open tabs after installing the extension or changing a setting. Chrome does not run newly installed content scripts in pages that are already open.
+
+## Development
+
+Run the local validation:
+
+```sh
+npm run check
+```
+
+The extension uses Manifest V3 and requires Chrome 111 or newer because its earliest content script runs in the page's `MAIN` world. This lets it intercept scroll cancellation before site JavaScript can cache the native event methods.
+
+## Limits
+
+Chrome does not allow extensions to run on browser-owned pages, the Chrome Web Store, or other extension pages. Sites can also implement scrolling with unusual rendering systems that do not use native document scrolling. Use the per-site switch if a site depends on custom wheel or touch gestures, such as a map or canvas editor.
