@@ -10,7 +10,7 @@ By default it:
 - removes smooth scrolling and scroll snapping
 - disconnects CSS and JavaScript scroll-driven animation timelines
 
-The toolbar popup can pause the extension per site. It also has an optional autoplay blocker that pauses media until the user interacts with the page.
+The toolbar popup can pause the extension per site. It also has optional controls that restore normal browser cursors, hide common JavaScript cursor followers, and pause autoplaying media until the user interacts with the page.
 
 ## Install locally
 
