@@ -62,6 +62,11 @@ its edge on both.
 | `assets/logo.svg` | Horizontal lockup (mark + outlined wordmark), used by popup header and README |
 | `store/banner-1400x560.{svg,png}` | Chrome Web Store marquee |
 | `store/tile-440x280.{svg,png}` | Small promo tile |
+| `store/screenshot-1280x800-01-hero.{svg,png}` | Listing screenshot 1 — wordmark |
+| `store/screenshot-1280x800-02-popup.{svg,png}` | Listing screenshot 2 — toolbar popup |
+| `store/screenshot-1280x800-03-scrolling.{svg,png}` | Listing screenshot 3 — scroll controls |
+| `store/screenshot-1280x800-04-per-site.{svg,png}` | Listing screenshot 4 — per-site pause |
+| `store/screenshot-1280x800-05-extras.{svg,png}` | Listing screenshot 5 — optional extras |
 | `scripts/brand.mjs` | Generator that rebuilds all of the above (see its header; needs `sharp` + `opentype.js` + IBM Plex TTFs, none of which are project deps) |
 
 ## UI wiring
