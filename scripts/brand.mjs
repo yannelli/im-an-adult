@@ -6,8 +6,8 @@
 //
 // Not wired into package.json on purpose: it needs two tools that are not
 // project dependencies plus the IBM Plex fonts (OFL licensed):
-//   npm i --no-save sharp opentype.js
-//   PLEX_DIR=/path/to/ibm-plex-ttfs node scripts/brand.mjs
+//   bun add --no-save sharp opentype.js
+//   PLEX_DIR=/path/to/ibm-plex-ttfs bun scripts/brand.mjs
 // (PLEX_DIR defaults to /usr/share/fonts/truetype/ibm-plex, the Ubuntu
 // fonts-ibm-plex package location. Wordmark text is outlined to paths, so
 // the emitted SVGs and PNGs have no font dependency at all.)
