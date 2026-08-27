@@ -22,10 +22,10 @@ Reload open tabs after installing the extension or changing a setting. Chrome do
 
 ## Development
 
-Run the local validation:
+Requires [Bun](https://bun.sh). Run the local validation:
 
 ```sh
-npm run check
+bun run check
 ```
 
 The extension uses Manifest V3 and requires Chrome 111 or newer because its earliest content script runs in the page's `MAIN` world. This lets it intercept scroll cancellation before site JavaScript can cache the native event methods.
