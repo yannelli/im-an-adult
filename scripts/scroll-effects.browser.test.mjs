@@ -42,10 +42,27 @@ function runFixture(enabled) {
   #scale-x { transform: scaleX(0); }
   #clip { clip-path: inset(100%); }
   #directional-clip { clip-path: inset(0 100% 0 0); }
+  #scale-z {
+    animation-name: reveal-from-scale-z;
+    opacity: 1;
+    transform: scaleZ(0);
+  }
+  #rotate-y { transform: rotateY(90deg); }
+  #combined {
+    animation-name: reveal-opacity, reveal-scale;
+    animation-timeline: view(), view();
+    opacity: 0;
+    transform: scale(0);
+  }
   #ordinary { animation: pulse 10s linear infinite; }
   @keyframes reveal {
     to { clip-path: inset(0%); opacity: 1; transform: scale(1); }
   }
+  @keyframes reveal-from-scale-z {
+    to { opacity: 0.5; transform: none; }
+  }
+  @keyframes reveal-opacity { to { opacity: 1; } }
+  @keyframes reveal-scale { to { transform: none; } }
   @keyframes pulse { to { opacity: 0.75; } }
 </style>
 <div class="scroll-effect" id="opacity">Opacity reveal</div>
@@ -53,6 +70,9 @@ function runFixture(enabled) {
 <div class="scroll-effect" id="scale-x">Single-axis scale reveal</div>
 <div class="scroll-effect" id="clip">Clip reveal</div>
 <div class="scroll-effect" id="directional-clip">Directional clip reveal</div>
+<div class="scroll-effect" id="scale-z">Visible scaleZ effect</div>
+<div class="scroll-effect" id="rotate-y">Edge-on rotation reveal</div>
+<div class="scroll-effect" id="combined">Combined opacity and scale reveal</div>
 <div id="ordinary">Ordinary animation</div>
 <div id="waapi">WAAPI scroll animation</div>
 <div id="shadow-host"></div>
@@ -83,14 +103,21 @@ function runFixture(enabled) {
     const scaleX = document.querySelector("#scale-x");
     const clip = document.querySelector("#clip");
     const directionalClip = document.querySelector("#directional-clip");
+    const scaleZ = document.querySelector("#scale-z");
+    const rotateY = document.querySelector("#rotate-y");
+    const combined = document.querySelector("#combined");
     const shadowReveal = shadowRoot.querySelector(".reveal");
     document.querySelector("#result").textContent = JSON.stringify({
       clip: getComputedStyle(clip).clipPath,
       directionalClip: getComputedStyle(directionalClip).clipPath,
       opacity: getComputedStyle(opacity).opacity,
+      combinedOpacity: getComputedStyle(combined).opacity,
+      combinedTransform: getComputedStyle(combined).transform,
       ordinaryAnimations: document.querySelector("#ordinary").getAnimations().length,
       scale: getComputedStyle(scale).transform,
       scaleX: getComputedStyle(scaleX).transform,
+      scaleZOpacity: getComputedStyle(scaleZ).opacity,
+      rotateY: getComputedStyle(rotateY).transform,
       shadowAnimations: shadowReveal.getAnimations().length,
       shadowOpacity: getComputedStyle(shadowReveal).opacity,
       scrollAnimations:
@@ -98,7 +125,10 @@ function runFixture(enabled) {
         scale.getAnimations().length +
         scaleX.getAnimations().length +
         clip.getAnimations().length +
-        directionalClip.getAnimations().length,
+        directionalClip.getAnimations().length +
+        scaleZ.getAnimations().length +
+        rotateY.getAnimations().length +
+        combined.getAnimations().length,
       waapiState: waapi.playState,
     });
   }, 150);
@@ -138,6 +168,13 @@ test(
     assert.notEqual(result.scaleX, "matrix(0, 0, 0, 1, 0, 0)");
     assert.notEqual(result.clip, "inset(100%)");
     assert.notEqual(result.directionalClip, "inset(0px 100% 0px 0px)");
+    assert.equal(result.scaleZOpacity, "1");
+    assert.notEqual(
+      result.rotateY,
+      "matrix3d(0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1)",
+    );
+    assert.equal(result.combinedOpacity, "1");
+    assert.notEqual(result.combinedTransform, "matrix(0, 0, 0, 0, 0, 0)");
     assert.equal(result.scrollAnimations, 0);
     assert.equal(result.shadowAnimations, 0);
     assert.equal(result.shadowOpacity, "1");
@@ -152,7 +189,7 @@ test(
   () => {
     const result = runFixture(false);
 
-    assert.equal(result.scrollAnimations, 5);
+    assert.equal(result.scrollAnimations, 9);
     assert.equal(result.shadowAnimations, 1);
     assert.notEqual(result.waapiState, "idle");
     assert.equal(result.ordinaryAnimations, 1);

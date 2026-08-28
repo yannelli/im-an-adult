@@ -121,11 +121,28 @@
     const values = matrix3d[1].split(",").map(Number);
     if (values.length !== 16 || !values.every(Number.isFinite)) return false;
 
-    const determinant =
-      values[0] * (values[5] * values[10] - values[9] * values[6]) -
-      values[4] * (values[1] * values[10] - values[9] * values[2]) +
-      values[8] * (values[1] * values[6] - values[5] * values[2]);
-    return Math.abs(determinant) <= 0.0001;
+    const projectedCorners = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ].map(([x, y]) => {
+      const divisor = values[3] * x + values[7] * y + values[15];
+      if (Math.abs(divisor) <= 0.0001) return null;
+      return [
+        (values[0] * x + values[4] * y + values[12]) / divisor,
+        (values[1] * x + values[5] * y + values[13]) / divisor,
+      ];
+    });
+    if (projectedCorners.some((corner) => !corner)) return false;
+
+    let doubledArea = 0;
+    for (let index = 0; index < projectedCorners.length; index += 1) {
+      const [x1, y1] = projectedCorners[index];
+      const [x2, y2] = projectedCorners[(index + 1) % projectedCorners.length];
+      doubledArea += x1 * y2 - y1 * x2;
+    }
+    return Math.abs(doubledArea) <= 0.0002;
   }
 
   function hasFullyClippedPath(clipPath) {
@@ -182,9 +199,10 @@
     }
   }
 
-  function settleScrollDrivenAnimation(animation) {
-    const target = animation.effect?.target;
-    nativeAnimationCancel.call(animation);
+  function settleScrollDrivenAnimationGroup(animations, target) {
+    for (const animation of animations) {
+      nativeAnimationCancel.call(animation);
+    }
 
     if (
       !target ||
@@ -196,20 +214,35 @@
     }
 
     try {
-      animation.currentTime = nativeCSSPercent(100);
-      if (!isVisuallyHidden(target)) {
-        nativeAnimationCommitStyles.call(animation);
+      let sampled = false;
+      for (const animation of animations) {
+        try {
+          animation.currentTime = nativeCSSPercent(100);
+          sampled = true;
+        } catch {
+          // Some animation effects cannot be sampled.
+        }
       }
-    } catch {
-      // Some animation effects cannot be sampled or committed.
+
+      if (!sampled || isVisuallyHidden(target)) return;
+
+      for (const animation of animations) {
+        try {
+          nativeAnimationCommitStyles.call(animation);
+        } catch {
+          // Some animation effects cannot be committed.
+        }
+      }
     } finally {
-      nativeAnimationCancel.call(animation);
+      for (const animation of animations) {
+        nativeAnimationCancel.call(animation);
+      }
     }
   }
 
-  function cancelScrollDrivenAnimation(animation) {
+  function isScrollDrivenAnimation(animation) {
     const timeline = animation?.timeline;
-    const scrollDriven =
+    return (
       hasNativeTimelineBrand(
         timeline,
         nativeScrollTimeline,
@@ -219,25 +252,45 @@
         timeline,
         nativeViewTimeline,
         nativeViewTimelineSubject,
-      );
-
-    if (
-      settingsReceived &&
-      settings.enabled &&
-      settings.disableScrollEffects &&
-      scrollDriven
-    ) {
-      settleScrollDrivenAnimation(animation);
-      return true;
-    }
-
-    return false;
+      )
+    );
   }
 
   function cancelScrollDrivenAnimations(animations) {
+    if (!scrollEffectBlockingActive()) return false;
+
+    const animationGroups = new Map();
+    let found = false;
     for (const animation of animations) {
-      cancelScrollDrivenAnimation(animation);
+      if (!isScrollDrivenAnimation(animation)) continue;
+      found = true;
+
+      const target = animation.effect?.target ?? null;
+      const group = animationGroups.get(target) ?? [];
+      group.push(animation);
+      animationGroups.set(target, group);
     }
+
+    for (const [target, group] of animationGroups) {
+      settleScrollDrivenAnimationGroup(group, target);
+    }
+
+    return found;
+  }
+
+  function cancelScrollDrivenAnimation(animation) {
+    const target = animation?.effect?.target;
+    if (target?.getAnimations) {
+      try {
+        return cancelScrollDrivenAnimations(
+          new Set([...target.getAnimations(), animation]),
+        );
+      } catch {
+        // Fall through to the animation supplied by the caller.
+      }
+    }
+
+    return cancelScrollDrivenAnimations([animation]);
   }
 
   const animationRootReferences = new Set();

@@ -72,7 +72,7 @@ function loadContentScript({
         value.value === 100 &&
         this.effect?.target
       ) {
-        this.effect.target.animatedStyle = { ...this.effect.endStyle };
+        this.effect.target.animatedStyles.set(this, { ...this.effect.endStyle });
       }
     }
 
@@ -88,16 +88,13 @@ function loadContentScript({
     cancel() {
       this.cancelCalls += 1;
       this.playState = "idle";
-      if (this.effect?.target) this.effect.target.animatedStyle = null;
+      this.effect?.target?.animatedStyles.delete(this);
     }
 
     commitStyles() {
       this.commitStylesCalls += 1;
-      if (this.effect?.target?.animatedStyle) {
-        Object.assign(
-          this.effect.target.computedStyle,
-          this.effect.target.animatedStyle,
-        );
+      if (this.effect?.target && this.effect.target.animatedStyles.has(this)) {
+        Object.assign(this.effect.target.computedStyle, this.effect.endStyle);
       }
     }
 
@@ -216,7 +213,7 @@ function loadContentScript({
     constructor() {
       super();
       this.animations = [];
-      this.animatedStyle = null;
+      this.animatedStyles = new Map();
       this.computedStyle = {
         clipPath: "none",
         contentVisibility: "visible",
@@ -340,7 +337,7 @@ function loadContentScript({
     getComputedStyle(element) {
       return {
         ...element.computedStyle,
-        ...element.animatedStyle,
+        ...Object.assign({}, ...element.animatedStyles.values()),
       };
     },
     queueMicrotask,
@@ -446,6 +443,64 @@ test("collapsed 3D scale reveals settle in their visible end state", () => {
   animation.play();
 
   assert.equal(context.getComputedStyle(target).transform, "none");
+});
+
+test("scaleZ does not make a flat element visually hidden", () => {
+  const { context } = loadContentScript();
+  const target = new context.Element();
+  target.computedStyle.transform =
+    "matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)";
+  const animation = new context.Animation(
+    { endStyle: { opacity: "0.5", transform: "none" }, target },
+    new context.ViewTimeline(),
+  );
+
+  animation.play();
+
+  assert.equal(context.getComputedStyle(target).opacity, "1");
+  assert.equal(animation.commitStylesCalls, 0);
+});
+
+test("edge-on 3D rotation reveals settle in their visible end state", () => {
+  const { context } = loadContentScript();
+  const target = new context.Element();
+  target.computedStyle.transform =
+    "matrix3d(0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1)";
+  const animation = new context.Animation(
+    { endStyle: { transform: "none" }, target },
+    new context.ViewTimeline(),
+  );
+
+  animation.play();
+
+  assert.equal(context.getComputedStyle(target).transform, "none");
+});
+
+test("separate reveal animations settle together", () => {
+  const { context, document, window } = loadContentScript({
+    initialSettings: null,
+  });
+  const target = new context.Element();
+  target.computedStyle.opacity = "0";
+  target.computedStyle.transform = "matrix(0, 0, 0, 0, 0, 0)";
+  const fade = new context.Animation(
+    { endStyle: { opacity: "1" }, target },
+    new context.ViewTimeline(),
+  );
+  const scale = new context.Animation(
+    { endStyle: { transform: "none" }, target },
+    new context.ViewTimeline(),
+  );
+  document.animations.push(fade, scale);
+
+  window.dispatch("__ima_settings__", {
+    detail: { disableScrollEffects: true, enabled: true },
+  });
+
+  assert.equal(context.getComputedStyle(target).opacity, "1");
+  assert.equal(context.getComputedStyle(target).transform, "none");
+  assert.equal(fade.playState, "idle");
+  assert.equal(scale.playState, "idle");
 });
 
 test("clipped reveals settle in their visible end state", () => {
