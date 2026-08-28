@@ -597,6 +597,27 @@ test("Animation.reverse cannot restart a scroll-driven animation", () => {
   assert.equal(animation.playState, "idle");
 });
 
+test("scroll-driven siblings do not suppress ordinary play or reverse", () => {
+  const { context } = loadContentScript();
+  const target = new context.Element();
+  const ordinary = new context.Animation(
+    { endStyle: {}, target },
+    new context.DocumentTimeline(),
+  );
+  const scrollDriven = new context.Animation(
+    { endStyle: {}, target },
+    new context.ViewTimeline(),
+  );
+  target.animations.push(ordinary, scrollDriven);
+
+  ordinary.play();
+  ordinary.reverse();
+
+  assert.equal(ordinary.nativePlayCalls, 1);
+  assert.equal(ordinary.nativeReverseCalls, 1);
+  assert.equal(scrollDriven.cancelCalls > 0, true);
+});
+
 test("assigning startTime cannot start a scroll-driven animation", () => {
   const { context } = loadContentScript();
   const animation = new context.Animation(null, new context.ScrollTimeline());

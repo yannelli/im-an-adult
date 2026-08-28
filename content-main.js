@@ -279,18 +279,22 @@
   }
 
   function cancelScrollDrivenAnimation(animation) {
+    const cancelRequested =
+      scrollEffectBlockingActive() && isScrollDrivenAnimation(animation);
     const target = animation?.effect?.target;
     if (target?.getAnimations) {
       try {
-        return cancelScrollDrivenAnimations(
+        cancelScrollDrivenAnimations(
           new Set([...target.getAnimations(), animation]),
         );
+        return cancelRequested;
       } catch {
         // Fall through to the animation supplied by the caller.
       }
     }
 
-    return cancelScrollDrivenAnimations([animation]);
+    cancelScrollDrivenAnimations([animation]);
+    return cancelRequested;
   }
 
   const animationRootReferences = new Set();

@@ -74,6 +74,7 @@ function runFixture(enabled) {
 <div class="scroll-effect" id="rotate-y">Edge-on rotation reveal</div>
 <div class="scroll-effect" id="combined">Combined opacity and scale reveal</div>
 <div id="ordinary">Ordinary animation</div>
+<div id="mixed">Mixed timeline animations</div>
 <div id="waapi">WAAPI scroll animation</div>
 <div id="shadow-host"></div>
 <output id="result">pending</output>
@@ -86,6 +87,17 @@ function runFixture(enabled) {
       timeline: new ScrollTimeline({ source: document.scrollingElement }),
     },
   );
+  const mixed = document.querySelector("#mixed");
+  const mixedOrdinary = mixed.animate([{ opacity: 1 }, { opacity: 0.75 }], {
+    duration: 10000,
+  });
+  mixedOrdinary.pause();
+  const mixedScroll = new Animation(
+    new KeyframeEffect(mixed, [{ transform: "none" }, { transform: "scale(0.9)" }]),
+    new ViewTimeline({ subject: mixed }),
+  );
+  mixedScroll.currentTime = CSS.percent(0);
+  mixedOrdinary.play();
   const shadowRoot = document.querySelector("#shadow-host").attachShadow({
     mode: "open",
   });
@@ -114,6 +126,8 @@ function runFixture(enabled) {
       combinedOpacity: getComputedStyle(combined).opacity,
       combinedTransform: getComputedStyle(combined).transform,
       ordinaryAnimations: document.querySelector("#ordinary").getAnimations().length,
+      mixedOrdinaryState: mixedOrdinary.playState,
+      mixedScrollState: mixedScroll.playState,
       scale: getComputedStyle(scale).transform,
       scaleX: getComputedStyle(scaleX).transform,
       scaleZOpacity: getComputedStyle(scaleZ).opacity,
@@ -180,6 +194,8 @@ test(
     assert.equal(result.shadowOpacity, "1");
     assert.equal(result.waapiState, "idle");
     assert.equal(result.ordinaryAnimations, 1);
+    assert.notEqual(result.mixedOrdinaryState, "paused");
+    assert.equal(result.mixedScrollState, "idle");
   },
 );
 
@@ -193,5 +209,7 @@ test(
     assert.equal(result.shadowAnimations, 1);
     assert.notEqual(result.waapiState, "idle");
     assert.equal(result.ordinaryAnimations, 1);
+    assert.notEqual(result.mixedOrdinaryState, "paused");
+    assert.notEqual(result.mixedScrollState, "idle");
   },
 );
