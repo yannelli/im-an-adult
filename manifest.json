@@ -1,10 +1,13 @@
 {
   "manifest_version": 3,
   "name": "I'm an Adult",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Take back control of scrolling from websites.",
   "minimum_chrome_version": "111",
-  "permissions": ["activeTab", "storage"],
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
   "action": {
     "default_title": "I'm an Adult",
     "default_popup": "popup.html",
@@ -23,20 +26,32 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
       "all_frames": true,
       "match_about_blank": true,
       "run_at": "document_start",
       "world": "MAIN",
-      "js": ["content-main.js"]
+      "js": [
+        "content-main.js"
+      ]
     },
     {
-      "matches": ["http://*/*", "https://*/*"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
       "all_frames": true,
       "match_about_blank": true,
       "run_at": "document_start",
-      "css": ["content.css"],
-      "js": ["content-isolated.js"]
+      "css": [
+        "content.css"
+      ],
+      "js": [
+        "content-isolated.js"
+      ]
     }
   ]
 }
