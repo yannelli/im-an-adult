@@ -173,7 +173,7 @@ function runFixture(enabled) {
 
 test(
   "real Chrome settles native scroll reveals and preserves ordinary animation",
-  { skip: !chrome },
+  { skip: !chrome, timeout: 30000 },
   () => {
     const result = runFixture(true);
 
@@ -201,7 +201,7 @@ test(
 
 test(
   "real Chrome leaves native scroll animations running on paused sites",
-  { skip: !chrome },
+  { skip: !chrome, timeout: 30000 },
   () => {
     const result = runFixture(false);
 
