@@ -19,6 +19,11 @@
   const nativeAddEventListener = EventTarget.prototype.addEventListener;
   const nativeAnimationCancel = Animation.prototype.cancel;
   const nativeAnimationCommitStyles = Animation.prototype.commitStyles;
+  const nativeAnimationReverse = Animation.prototype.reverse;
+  const nativeAnimationStartTimeDescriptor = Object.getOwnPropertyDescriptor(
+    Animation.prototype,
+    "startTime",
+  );
   const nativeCSSPercent =
     typeof CSS === "object" && typeof CSS.percent === "function"
       ? CSS.percent.bind(CSS)
@@ -84,15 +89,42 @@
 
   function hasNativeTimelineBrand(timeline, constructor, brandGetter) {
     if (!timeline) return false;
-    if (constructor && timeline instanceof constructor) return true;
-    if (typeof brandGetter !== "function") return false;
+    if (typeof brandGetter === "function") {
+      try {
+        brandGetter.call(timeline);
+        return true;
+      } catch {
+        return false;
+      }
+    }
 
     try {
-      brandGetter.call(timeline);
-      return true;
+      return Boolean(constructor && timeline instanceof constructor);
     } catch {
       return false;
     }
+  }
+
+  function hasCollapsedTransform(transform) {
+    const match = /^matrix\(([^)]+)\)$/.exec(transform);
+    if (!match) return false;
+    const values = match[1].split(",").map(Number);
+    return (
+      values.length === 6 &&
+      Math.hypot(values[0], values[1]) <= 0.01 &&
+      Math.hypot(values[2], values[3]) <= 0.01
+    );
+  }
+
+  function hasFullyClippedPath(clipPath) {
+    return (
+      /^inset\(\s*100(?:\.0+)?%\s*\)$/i.test(clipPath) ||
+      /^(?:circle|ellipse)\(\s*0(?:px|%)?(?:\s|at|\))/i.test(clipPath)
+    );
+  }
+
+  function hasTransparentFilter(filter) {
+    return /(?:^|\s)opacity\(\s*0(?:\.0+)?%?\s*\)/i.test(filter);
   }
 
   function isVisuallyHidden(target) {
@@ -101,8 +133,12 @@
       const opacity = Number.parseFloat(style.opacity);
       return (
         style.display === "none" ||
+        style.contentVisibility === "hidden" ||
         style.visibility === "hidden" ||
         style.visibility === "collapse" ||
+        hasCollapsedTransform(style.transform) ||
+        hasFullyClippedPath(style.clipPath) ||
+        hasTransparentFilter(style.filter) ||
         (!Number.isNaN(opacity) && opacity <= 0.01)
       );
     } catch {
@@ -215,6 +251,19 @@
     });
   }
 
+  function scheduleAllAnimationRootScans() {
+    if (!scrollEffectBlockingActive()) return;
+
+    for (const reference of animationRootReferences) {
+      const root = reference.deref();
+      if (root) {
+        scheduleAnimationRootScan(root);
+      } else {
+        animationRootReferences.delete(reference);
+      }
+    }
+  }
+
   function observeShadowRoots(node) {
     if (node?.nodeType !== 1) return;
 
@@ -231,6 +280,21 @@
     const reference = new nativeWeakRef(root);
     animationRootReferences.add(reference);
     animationRootFinalizer.register(root, reference);
+
+    nativeAddEventListener.call(
+      root,
+      "animationstart",
+      (event) => {
+        cancelScrollDrivenAnimations(event.target?.getAnimations?.() ?? []);
+      },
+      true,
+    );
+    nativeAddEventListener.call(
+      root,
+      "load",
+      () => scheduleAnimationRootScan(root),
+      true,
+    );
 
     const observer = new nativeMutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -259,18 +323,65 @@
     };
   }
 
+  const patchedAdoptedStyleSheetLists = new WeakSet();
+
+  function patchAdoptedStyleSheetList(root, list) {
+    if (!list || patchedAdoptedStyleSheetLists.has(list)) return list;
+    patchedAdoptedStyleSheetLists.add(list);
+
+    for (const name of [
+      "copyWithin",
+      "fill",
+      "pop",
+      "push",
+      "reverse",
+      "shift",
+      "sort",
+      "splice",
+      "unshift",
+    ]) {
+      const nativeMethod = list[name];
+      if (typeof nativeMethod !== "function") continue;
+
+      try {
+        Object.defineProperty(list, name, {
+          configurable: true,
+          value(...args) {
+            const result = nativeMethod.apply(this, args);
+            scheduleAnimationRootScan(root);
+            return result;
+          },
+          writable: true,
+        });
+      } catch {
+        // Older FrozenArray implementations only support full reassignment.
+      }
+    }
+
+    return list;
+  }
+
   function patchAdoptedStyleSheets(prototype) {
     const descriptor = Object.getOwnPropertyDescriptor(
       prototype,
       "adoptedStyleSheets",
     );
-    if (typeof descriptor?.set !== "function") return;
+    if (
+      typeof descriptor?.get !== "function" ||
+      typeof descriptor.set !== "function"
+    ) {
+      return;
+    }
 
     Object.defineProperty(prototype, "adoptedStyleSheets", {
       ...descriptor,
+      get() {
+        return patchAdoptedStyleSheetList(this, descriptor.get.call(this));
+      },
       set(value) {
         descriptor.set.call(this, value);
-        cancelRootScrollDrivenAnimations();
+        patchAdoptedStyleSheetList(this, descriptor.get.call(this));
+        scheduleAnimationRootScan(this);
       },
     });
   }
@@ -278,25 +389,77 @@
   patchAdoptedStyleSheets(Document.prototype);
   patchAdoptedStyleSheets(ShadowRoot.prototype);
 
-  if (typeof CSSStyleSheet === "function") {
-    for (const name of ["deleteRule", "insertRule", "replaceSync"]) {
-      const nativeMethod = CSSStyleSheet.prototype[name];
+  function patchMutationMethods(prototype, names, shouldSchedule = () => true) {
+    if (!prototype) return;
+
+    for (const name of names) {
+      const nativeMethod = prototype[name];
       if (typeof nativeMethod !== "function") continue;
 
-      CSSStyleSheet.prototype[name] = function (...args) {
+      prototype[name] = function (...args) {
         const result = nativeMethod.apply(this, args);
-        cancelRootScrollDrivenAnimations();
+        if (shouldSchedule(this)) scheduleAllAnimationRootScans();
         return result;
       };
     }
+  }
+
+  function patchMutationSetter(prototype, name, shouldSchedule = () => true) {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+    if (typeof descriptor?.set !== "function") return;
+
+    Object.defineProperty(prototype, name, {
+      ...descriptor,
+      set(value) {
+        descriptor.set.call(this, value);
+        if (shouldSchedule(this)) scheduleAllAnimationRootScans();
+      },
+    });
+  }
+
+  if (typeof CSSStyleSheet === "function") {
+    patchMutationMethods(CSSStyleSheet.prototype, [
+      "deleteRule",
+      "insertRule",
+      "replaceSync",
+    ]);
+    patchMutationSetter(CSSStyleSheet.prototype, "disabled");
 
     const nativeReplace = CSSStyleSheet.prototype.replace;
     if (typeof nativeReplace === "function") {
       CSSStyleSheet.prototype.replace = function (...args) {
         const result = nativeReplace.apply(this, args);
-        result.then(cancelRootScrollDrivenAnimations, () => {});
+        result.then(scheduleAllAnimationRootScans, () => {});
         return result;
       };
+    }
+  }
+
+  if (typeof CSSGroupingRule === "function") {
+    patchMutationMethods(CSSGroupingRule.prototype, ["deleteRule", "insertRule"]);
+  }
+
+  if (typeof CSSKeyframesRule === "function") {
+    patchMutationMethods(CSSKeyframesRule.prototype, ["appendRule", "deleteRule"]);
+  }
+
+  if (typeof CSSStyleDeclaration === "function") {
+    const belongsToRule = (declaration) => Boolean(declaration.parentRule);
+    patchMutationMethods(
+      CSSStyleDeclaration.prototype,
+      ["removeProperty", "setProperty"],
+      belongsToRule,
+    );
+    for (const name of [
+      "animation",
+      "animationName",
+      "animationRange",
+      "animationRangeEnd",
+      "animationRangeStart",
+      "animationTimeline",
+      "cssText",
+    ]) {
+      patchMutationSetter(CSSStyleDeclaration.prototype, name, belongsToRule);
     }
   }
 
@@ -318,6 +481,23 @@
     };
   }
 
+  if (typeof nativeAnimationReverse === "function") {
+    Animation.prototype.reverse = function (...args) {
+      if (cancelScrollDrivenAnimation(this)) return;
+      return nativeAnimationReverse.apply(this, args);
+    };
+  }
+
+  if (typeof nativeAnimationStartTimeDescriptor?.set === "function") {
+    Object.defineProperty(Animation.prototype, "startTime", {
+      ...nativeAnimationStartTimeDescriptor,
+      set(value) {
+        nativeAnimationStartTimeDescriptor.set.call(this, value);
+        cancelScrollDrivenAnimation(this);
+      },
+    });
+  }
+
   const nativeTimelineDescriptor = Object.getOwnPropertyDescriptor(
     Animation.prototype,
     "timeline",
@@ -331,24 +511,6 @@
       },
     });
   }
-
-  nativeAddEventListener.call(
-    document,
-    "animationstart",
-    (event) => {
-      cancelScrollDrivenAnimations(event.target?.getAnimations?.() ?? []);
-    },
-    true,
-  );
-
-  nativeAddEventListener.call(
-    document,
-    "load",
-    (event) => {
-      scheduleAnimationRootScan(event.target?.getRootNode?.() ?? document);
-    },
-    true,
-  );
 
   for (const eventName of ["pointerdown", "mousedown", "touchstart", "keydown"]) {
     nativeAddEventListener.call(
@@ -377,8 +539,7 @@
     true,
   );
 
-  nativeAddEventListener.call(window, "__ima_settings__", (event) => {
-    const next = event.detail;
+  function applySettings(next) {
     if (!next || typeof next !== "object") return;
 
     settings = {
@@ -392,5 +553,29 @@
     if (settings.enabled && settings.disableScrollEffects) {
       cancelRootScrollDrivenAnimations();
     }
-  });
+  }
+
+  let settingsPortConnected = false;
+  nativeAddEventListener.call(
+    window,
+    "message",
+    (event) => {
+      if (
+        settingsPortConnected ||
+        event.source !== window ||
+        event.data !== "__ima_settings_port__"
+      ) {
+        return;
+      }
+
+      const port = event.ports?.[0];
+      if (!port) return;
+      settingsPortConnected = true;
+      nativeAddEventListener.call(port, "message", (messageEvent) => {
+        applySettings(messageEvent.data);
+      });
+      port.start();
+    },
+    true,
+  );
 })();
