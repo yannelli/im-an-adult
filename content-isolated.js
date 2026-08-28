@@ -20,8 +20,6 @@ const CURSOR_NAME_PATTERN =
   /(?:^|[\s_-])(?:cursor|mouse[\s_-]?(?:follower|trail)|pointer[\s_-]?(?:follower|trail))(?:$|[\s_-])/i;
 const cursorOverlays = new Set();
 let cursorObserver;
-const settingsChannel = new MessageChannel();
-window.postMessage("__ima_settings_port__", "*", [settingsChannel.port2]);
 
 function isCursorOverlay(element) {
   const identifiers = [
@@ -133,7 +131,11 @@ async function applySettings() {
   );
   setAnimatedCursorBlocking(enabled && settings.disableAnimatedCursors);
 
-  settingsChannel.port1.postMessage({ ...settings, enabled });
+  window.dispatchEvent(
+    new CustomEvent("__ima_settings__", {
+      detail: { ...settings, enabled },
+    }),
+  );
 }
 
 applySettings();

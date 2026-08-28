@@ -106,20 +106,56 @@
   }
 
   function hasCollapsedTransform(transform) {
-    const match = /^matrix\(([^)]+)\)$/.exec(transform);
-    if (!match) return false;
-    const values = match[1].split(",").map(Number);
-    return (
-      values.length === 6 &&
-      Math.hypot(values[0], values[1]) <= 0.01 &&
-      Math.hypot(values[2], values[3]) <= 0.01
-    );
+    const matrix2d = /^matrix\(([^)]+)\)$/.exec(transform);
+    if (matrix2d) {
+      const values = matrix2d[1].split(",").map(Number);
+      return (
+        values.length === 6 &&
+        values.every(Number.isFinite) &&
+        Math.abs(values[0] * values[3] - values[1] * values[2]) <= 0.0001
+      );
+    }
+
+    const matrix3d = /^matrix3d\(([^)]+)\)$/.exec(transform);
+    if (!matrix3d) return false;
+    const values = matrix3d[1].split(",").map(Number);
+    if (values.length !== 16 || !values.every(Number.isFinite)) return false;
+
+    const determinant =
+      values[0] * (values[5] * values[10] - values[9] * values[6]) -
+      values[4] * (values[1] * values[10] - values[9] * values[2]) +
+      values[8] * (values[1] * values[6] - values[5] * values[2]);
+    return Math.abs(determinant) <= 0.0001;
   }
 
   function hasFullyClippedPath(clipPath) {
+    if (/^(?:circle|ellipse)\(\s*0(?:px|%)?(?:\s|at|\))/i.test(clipPath)) {
+      return true;
+    }
+
+    const inset = /^inset\((.*)\)$/i.exec(clipPath);
+    if (!inset) return false;
+    const values = inset[1].split(/\s+round\s+/i, 1)[0].trim().split(/\s+/);
+    if (values.length < 1 || values.length > 4) return false;
+
+    const expanded =
+      values.length === 1
+        ? [values[0], values[0], values[0], values[0]]
+        : values.length === 2
+          ? [values[0], values[1], values[0], values[1]]
+          : values.length === 3
+            ? [values[0], values[1], values[2], values[1]]
+            : values;
+    const percentages = expanded.map((value) => {
+      if (/^[+-]?0(?:\.0+)?(?:[a-z]+)?$/i.test(value)) return 0;
+      const percentage = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))%$/.exec(value);
+      return percentage ? Number(percentage[1]) : null;
+    });
+    const [top, right, bottom, left] = percentages;
+
     return (
-      /^inset\(\s*100(?:\.0+)?%\s*\)$/i.test(clipPath) ||
-      /^(?:circle|ellipse)\(\s*0(?:px|%)?(?:\s|at|\))/i.test(clipPath)
+      (top !== null && bottom !== null && top + bottom >= 100) ||
+      (right !== null && left !== null && right + left >= 100)
     );
   }
 
@@ -423,8 +459,6 @@
       "insertRule",
       "replaceSync",
     ]);
-    patchMutationSetter(CSSStyleSheet.prototype, "disabled");
-
     const nativeReplace = CSSStyleSheet.prototype.replace;
     if (typeof nativeReplace === "function") {
       CSSStyleSheet.prototype.replace = function (...args) {
@@ -433,6 +467,10 @@
         return result;
       };
     }
+  }
+
+  if (typeof StyleSheet === "function") {
+    patchMutationSetter(StyleSheet.prototype, "disabled");
   }
 
   if (typeof CSSGroupingRule === "function") {
@@ -555,27 +593,7 @@
     }
   }
 
-  let settingsPortConnected = false;
-  nativeAddEventListener.call(
-    window,
-    "message",
-    (event) => {
-      if (
-        settingsPortConnected ||
-        event.source !== window ||
-        event.data !== "__ima_settings_port__"
-      ) {
-        return;
-      }
-
-      const port = event.ports?.[0];
-      if (!port) return;
-      settingsPortConnected = true;
-      nativeAddEventListener.call(port, "message", (messageEvent) => {
-        applySettings(messageEvent.data);
-      });
-      port.start();
-    },
-    true,
-  );
+  nativeAddEventListener.call(window, "__ima_settings__", (event) => {
+    applySettings(event.detail);
+  });
 })();

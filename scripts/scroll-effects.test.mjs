@@ -40,14 +40,6 @@ function loadContentScript({
     }
   }
 
-  class FakeMessagePort extends FakeEventTarget {
-    postMessage(data) {
-      this.peer?.dispatch("message", { data });
-    }
-
-    start() {}
-  }
-
   class FakeAnimation {
     constructor(effect = null, timeline = null) {
       this.cancelCalls = 0;
@@ -152,7 +144,21 @@ function loadContentScript({
     return timeline;
   }
 
-  class FakeCSSStyleSheet {
+  class FakeStyleSheet {
+    constructor() {
+      this.disabledValue = false;
+    }
+
+    get disabled() {
+      return this.disabledValue;
+    }
+
+    set disabled(value) {
+      this.disabledValue = value;
+    }
+  }
+
+  class FakeCSSStyleSheet extends FakeStyleSheet {
     deleteRule() {}
 
     insertRule() {
@@ -307,10 +313,6 @@ function loadContentScript({
 
   const document = new FakeDocument();
   const window = new FakeWindow();
-  const mainSettingsPort = new FakeMessagePort();
-  const settingsPort = new FakeMessagePort();
-  mainSettingsPort.peer = settingsPort;
-  settingsPort.peer = mainSettingsPort;
   const context = vm.createContext({
     Animation: FakeAnimation,
     CSS: {
@@ -330,6 +332,7 @@ function loadContentScript({
     MutationObserver: FakeMutationObserver,
     ScrollTimeline,
     ShadowRoot: FakeShadowRoot,
+    StyleSheet: FakeStyleSheet,
     ViewTimeline,
     Window: FakeWindow,
     createCrossRealmScrollTimeline,
@@ -346,17 +349,11 @@ function loadContentScript({
 
   vm.runInContext(contentScript, context);
 
-  window.dispatch("message", {
-    data: "__ima_settings_port__",
-    ports: [mainSettingsPort],
-    source: window,
-  });
-
   if (initialSettings) {
-    settingsPort.postMessage(initialSettings);
+    window.dispatch("__ima_settings__", { detail: initialSettings });
   }
 
-  return { context, document, observerInstances, settingsPort, window };
+  return { context, document, observerInstances, window };
 }
 
 test("the stylesheet leaves animation timelines intact for selective cancellation", () => {
@@ -422,6 +419,35 @@ test("scale reveals settle in their visible end state", () => {
   assert.equal(context.getComputedStyle(target).transform, "none");
 });
 
+test("single-axis scale reveals settle in their visible end state", () => {
+  const { context } = loadContentScript();
+  const target = new context.Element();
+  target.computedStyle.transform = "matrix(0, 0, 0, 1, 0, 0)";
+  const animation = new context.Animation(
+    { endStyle: { transform: "none" }, target },
+    new context.ViewTimeline(),
+  );
+
+  animation.play();
+
+  assert.equal(context.getComputedStyle(target).transform, "none");
+});
+
+test("collapsed 3D scale reveals settle in their visible end state", () => {
+  const { context } = loadContentScript();
+  const target = new context.Element();
+  target.computedStyle.transform =
+    "matrix3d(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)";
+  const animation = new context.Animation(
+    { endStyle: { transform: "none" }, target },
+    new context.ViewTimeline(),
+  );
+
+  animation.play();
+
+  assert.equal(context.getComputedStyle(target).transform, "none");
+});
+
 test("clipped reveals settle in their visible end state", () => {
   const { context } = loadContentScript();
   const target = new context.Element();
@@ -436,10 +462,22 @@ test("clipped reveals settle in their visible end state", () => {
   assert.equal(context.getComputedStyle(target).clipPath, "none");
 });
 
+test("directional clip reveals settle in their visible end state", () => {
+  const { context } = loadContentScript();
+  const target = new context.Element();
+  target.computedStyle.clipPath = "inset(0px 100% 0px 0px)";
+  const animation = new context.Animation(
+    { endStyle: { clipPath: "none" }, target },
+    new context.ScrollTimeline(),
+  );
+
+  animation.play();
+
+  assert.equal(context.getComputedStyle(target).clipPath, "none");
+});
+
 test("scroll animations wait for settings before making irreversible changes", () => {
-  const { context, settingsPort } = loadContentScript({
-    initialSettings: null,
-  });
+  const { context, window } = loadContentScript({ initialSettings: null });
   const element = new context.Element();
   const animation = element.animate([], {
     timeline: new context.ScrollTimeline(),
@@ -448,14 +486,16 @@ test("scroll animations wait for settings before making irreversible changes", (
   assert.equal(animation.cancelCalls, 0);
   assert.equal(animation.playState, "running");
 
-  settingsPort.postMessage({ disableScrollEffects: true, enabled: false });
+  window.dispatch("__ima_settings__", {
+    detail: { disableScrollEffects: true, enabled: false },
+  });
 
   assert.equal(animation.cancelCalls, 0);
   assert.equal(animation.playState, "running");
 });
 
 test("the first enabled setting flushes animations created while settings load", () => {
-  const { context, document, settingsPort } = loadContentScript({
+  const { context, document, window } = loadContentScript({
     initialSettings: null,
   });
   const animation = new context.Animation(
@@ -464,22 +504,11 @@ test("the first enabled setting flushes animations created while settings load",
   );
   document.animations.push(animation);
 
-  settingsPort.postMessage({ disableScrollEffects: true, enabled: true });
-
-  assert.equal(animation.cancelCalls, 1);
-});
-
-test("page-dispatched settings events cannot authorize cancellation", () => {
-  const { context, window } = loadContentScript({ initialSettings: null });
   window.dispatch("__ima_settings__", {
     detail: { disableScrollEffects: true, enabled: true },
   });
-  const animation = new context.Animation(null, new context.ScrollTimeline());
 
-  animation.play();
-
-  assert.equal(animation.nativePlayCalls, 1);
-  assert.equal(animation.cancelCalls, 0);
+  assert.equal(animation.cancelCalls, 1);
 });
 
 test("animation discovery observes only style-affecting attributes", () => {
@@ -625,12 +654,13 @@ test("shadow-root animation events discover scroll-driven animations", () => {
 });
 
 test("CSS discovery leaves scroll animations running when blocking is disabled", async () => {
-  const { context, document, observerInstances, settingsPort } =
-    loadContentScript();
-  settingsPort.postMessage({
-    blockHijacking: true,
-    disableScrollEffects: false,
-    enabled: true,
+  const { context, document, observerInstances, window } = loadContentScript();
+  window.dispatch("__ima_settings__", {
+    detail: {
+      blockHijacking: true,
+      disableScrollEffects: false,
+      enabled: true,
+    },
   });
   const scrollDriven = new context.Animation(null, new context.ScrollTimeline());
   document.animations.push(scrollDriven);
@@ -666,6 +696,18 @@ test("CSSStyleSheet mutations coalesce animation discovery", async () => {
   assert.equal(document.getAnimationsCalls, callsBefore);
   await Promise.resolve();
   assert.equal(document.getAnimationsCalls, callsBefore + 1);
+});
+
+test("toggling StyleSheet.disabled discovers scroll animations", async () => {
+  const { context, document } = loadContentScript();
+  const animation = new context.Animation(null, new context.ScrollTimeline());
+  document.animations.push(animation);
+  const sheet = new context.CSSStyleSheet();
+
+  sheet.disabled = true;
+  await Promise.resolve();
+
+  assert.equal(animation.cancelCalls, 1);
 });
 
 test("CSS declarations discover pre-active scroll animations", async () => {
@@ -716,15 +758,17 @@ test("mutating adoptedStyleSheets in place discovers scroll animations", async (
 });
 
 test("enabling scroll-effect blocking cancels existing scroll-driven animations", () => {
-  const { context, document, settingsPort } = loadContentScript();
+  const { context, document, window } = loadContentScript();
   const ordinary = new context.Animation(null, new context.DocumentTimeline());
   const scrollDriven = new context.Animation(null, new context.ViewTimeline());
   document.animations.push(ordinary, scrollDriven);
 
-  settingsPort.postMessage({
-    blockHijacking: true,
-    disableScrollEffects: true,
-    enabled: true,
+  window.dispatch("__ima_settings__", {
+    detail: {
+      blockHijacking: true,
+      disableScrollEffects: true,
+      enabled: true,
+    },
   });
 
   assert.equal(ordinary.cancelCalls, 0);

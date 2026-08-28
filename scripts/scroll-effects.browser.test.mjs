@@ -27,12 +27,9 @@ function runFixture(enabled) {
 <meta charset="utf-8">
 <script src="content-main.js"></script>
 <script>
-  const settingsChannel = new MessageChannel();
-  window.postMessage("__ima_settings_port__", "*", [settingsChannel.port2]);
-  settingsChannel.port1.postMessage({
-    disableScrollEffects: true,
-    enabled: ${enabled},
-  });
+  window.dispatchEvent(new CustomEvent("__ima_settings__", {
+    detail: { disableScrollEffects: true, enabled: ${enabled} },
+  }));
 </script>
 <style>
   body { min-height: 600vh; }
@@ -42,7 +39,9 @@ function runFixture(enabled) {
   }
   #opacity { opacity: 0; }
   #scale { transform: scale(0); }
+  #scale-x { transform: scaleX(0); }
   #clip { clip-path: inset(100%); }
+  #directional-clip { clip-path: inset(0 100% 0 0); }
   #ordinary { animation: pulse 10s linear infinite; }
   @keyframes reveal {
     to { clip-path: inset(0%); opacity: 1; transform: scale(1); }
@@ -51,7 +50,9 @@ function runFixture(enabled) {
 </style>
 <div class="scroll-effect" id="opacity">Opacity reveal</div>
 <div class="scroll-effect" id="scale">Scale reveal</div>
+<div class="scroll-effect" id="scale-x">Single-axis scale reveal</div>
 <div class="scroll-effect" id="clip">Clip reveal</div>
+<div class="scroll-effect" id="directional-clip">Directional clip reveal</div>
 <div id="ordinary">Ordinary animation</div>
 <div id="waapi">WAAPI scroll animation</div>
 <div id="shadow-host"></div>
@@ -79,19 +80,25 @@ function runFixture(enabled) {
   setTimeout(() => {
     const opacity = document.querySelector("#opacity");
     const scale = document.querySelector("#scale");
+    const scaleX = document.querySelector("#scale-x");
     const clip = document.querySelector("#clip");
+    const directionalClip = document.querySelector("#directional-clip");
     const shadowReveal = shadowRoot.querySelector(".reveal");
     document.querySelector("#result").textContent = JSON.stringify({
       clip: getComputedStyle(clip).clipPath,
+      directionalClip: getComputedStyle(directionalClip).clipPath,
       opacity: getComputedStyle(opacity).opacity,
       ordinaryAnimations: document.querySelector("#ordinary").getAnimations().length,
       scale: getComputedStyle(scale).transform,
+      scaleX: getComputedStyle(scaleX).transform,
       shadowAnimations: shadowReveal.getAnimations().length,
       shadowOpacity: getComputedStyle(shadowReveal).opacity,
       scrollAnimations:
         opacity.getAnimations().length +
         scale.getAnimations().length +
-        clip.getAnimations().length,
+        scaleX.getAnimations().length +
+        clip.getAnimations().length +
+        directionalClip.getAnimations().length,
       waapiState: waapi.playState,
     });
   }, 150);
@@ -128,7 +135,9 @@ test(
 
     assert.equal(result.opacity, "1");
     assert.notEqual(result.scale, "matrix(0, 0, 0, 0, 0, 0)");
+    assert.notEqual(result.scaleX, "matrix(0, 0, 0, 1, 0, 0)");
     assert.notEqual(result.clip, "inset(100%)");
+    assert.notEqual(result.directionalClip, "inset(0px 100% 0px 0px)");
     assert.equal(result.scrollAnimations, 0);
     assert.equal(result.shadowAnimations, 0);
     assert.equal(result.shadowOpacity, "1");
@@ -143,7 +152,7 @@ test(
   () => {
     const result = runFixture(false);
 
-    assert.equal(result.scrollAnimations, 3);
+    assert.equal(result.scrollAnimations, 5);
     assert.equal(result.shadowAnimations, 1);
     assert.notEqual(result.waapiState, "idle");
     assert.equal(result.ordinaryAnimations, 1);

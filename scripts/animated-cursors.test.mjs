@@ -109,8 +109,6 @@ test("the content script hides cursor overlays and restores them when disabled",
   });
   const root = createElement();
   const observerInstances = [];
-  const bridgeMessages = [];
-  const settingsMessages = [];
   let storedSettings = { disableAnimatedCursors: true };
   let storageListener;
 
@@ -124,19 +122,6 @@ test("the content script hides cursor overlays and restores them when disabled",
   globalThis.location = { hostname: "example.com" };
   globalThis.window = {
     dispatchEvent() {},
-    postMessage(data, targetOrigin, ports) {
-      bridgeMessages.push({ data, ports, targetOrigin });
-    },
-  };
-  globalThis.MessageChannel = class MessageChannel {
-    constructor() {
-      this.port1 = {
-        postMessage(value) {
-          settingsMessages.push(structuredClone(value));
-        },
-      };
-      this.port2 = { name: "main-world-settings-port" };
-    }
   };
   globalThis.CustomEvent = class CustomEvent {
     constructor(type, init) {
@@ -175,17 +160,6 @@ test("the content script hides cursor overlays and restores them when disabled",
     assert.equal(root.dataset.imaDisableAnimatedCursors, "true");
     assert.equal(customCursor.dataset.imaCursorOverlay, "true");
     assert.equal(ordinaryElement.dataset.imaCursorOverlay, undefined);
-    assert.equal(bridgeMessages.length, 1);
-    assert.equal(bridgeMessages[0].data, "__ima_settings_port__");
-    assert.equal(bridgeMessages[0].targetOrigin, "*");
-    assert.equal(bridgeMessages[0].ports.length, 1);
-    assert.deepEqual(settingsMessages.at(-1), {
-      blockAutoplay: false,
-      blockHijacking: true,
-      disableAnimatedCursors: true,
-      disableScrollEffects: true,
-      enabled: true,
-    });
 
     const dynamicCursor = createElement({
       className: "mouse-follower",
@@ -204,7 +178,6 @@ test("the content script hides cursor overlays and restores them when disabled",
     assert.equal(root.dataset.imaDisableAnimatedCursors, "false");
     assert.equal(customCursor.dataset.imaCursorOverlay, undefined);
     assert.equal(dynamicCursor.dataset.imaCursorOverlay, undefined);
-    assert.equal(settingsMessages.at(-1).disableAnimatedCursors, false);
   } finally {
     for (const name of [
       "chrome",
@@ -212,7 +185,6 @@ test("the content script hides cursor overlays and restores them when disabled",
       "document",
       "getComputedStyle",
       "location",
-      "MessageChannel",
       "MutationObserver",
       "window",
     ]) {

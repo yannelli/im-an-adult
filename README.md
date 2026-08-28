@@ -8,7 +8,7 @@ By default it:
 
 - prevents pages from cancelling wheel and touch scrolling
 - removes smooth scrolling and scroll snapping
-- settles native CSS and Web Animations scroll-linked timelines without disabling ordinary animations
+- experimentally settles native CSS and Web Animations scroll-linked timelines without disabling ordinary animations
 
 The toolbar popup can pause the extension per site. It also has optional controls that restore normal browser cursors, hide common JavaScript cursor followers, and pause autoplaying media until the user interacts with the page.
 
