@@ -8,7 +8,7 @@ By default it:
 
 - prevents pages from cancelling wheel and touch scrolling
 - removes smooth scrolling and scroll snapping
-- disconnects CSS and JavaScript scroll-driven animation timelines
+- experimentally settles native CSS and Web Animations scroll-linked timelines without disabling ordinary animations
 
 The toolbar popup can pause the extension per site. It also has optional controls that restore normal browser cursors, hide common JavaScript cursor followers, and pause autoplaying media until the user interacts with the page.
 
@@ -37,4 +37,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the commit standard, SemVer policy, a
 
 ## Limits
 
-Chrome does not allow extensions to run on browser-owned pages, the Chrome Web Store, or other extension pages. Sites can also implement scrolling with unusual rendering systems that do not use native document scrolling. Use the per-site switch if a site depends on custom wheel or touch gestures, such as a map or canvas editor.
+Chrome does not allow extensions to run on browser-owned pages, the Chrome Web Store, or other extension pages. Sites can also implement scrolling with unusual rendering systems that do not use native document scrolling. JavaScript effects driven directly by scroll listeners, canvas, or WebGL do not expose native scroll timelines and are not disabled. Use the per-site switch if a site depends on custom wheel or touch gestures, such as a map or canvas editor.
