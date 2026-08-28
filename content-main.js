@@ -6,6 +6,7 @@
     blockAutoplay: false,
   };
   let settings = { ...defaults };
+  let settingsReceived = false;
   let userHasInteracted = false;
 
   const scrollInputEvents = new Set([
@@ -16,7 +17,14 @@
   ]);
 
   const nativeAddEventListener = EventTarget.prototype.addEventListener;
+  const nativeAnimationCancel = Animation.prototype.cancel;
+  const nativeAnimationCommitStyles = Animation.prototype.commitStyles;
+  const nativeCSSPercent =
+    typeof CSS === "object" && typeof CSS.percent === "function"
+      ? CSS.percent.bind(CSS)
+      : null;
   const nativeFinalizationRegistry = FinalizationRegistry;
+  const nativeGetComputedStyle = getComputedStyle;
   const nativePreventDefault = Event.prototype.preventDefault;
   const nativeMutationObserver = MutationObserver;
   const nativeQueueMicrotask = queueMicrotask;
@@ -87,6 +95,46 @@
     }
   }
 
+  function isVisuallyHidden(target) {
+    try {
+      const style = nativeGetComputedStyle(target);
+      const opacity = Number.parseFloat(style.opacity);
+      return (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.visibility === "collapse" ||
+        (!Number.isNaN(opacity) && opacity <= 0.01)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function settleScrollDrivenAnimation(animation) {
+    const target = animation.effect?.target;
+    nativeAnimationCancel.call(animation);
+
+    if (
+      !target ||
+      !nativeCSSPercent ||
+      typeof nativeAnimationCommitStyles !== "function" ||
+      !isVisuallyHidden(target)
+    ) {
+      return;
+    }
+
+    try {
+      animation.currentTime = nativeCSSPercent(100);
+      if (!isVisuallyHidden(target)) {
+        nativeAnimationCommitStyles.call(animation);
+      }
+    } catch {
+      // Some animation effects cannot be sampled or committed.
+    } finally {
+      nativeAnimationCancel.call(animation);
+    }
+  }
+
   function cancelScrollDrivenAnimation(animation) {
     const timeline = animation?.timeline;
     const scrollDriven =
@@ -102,11 +150,12 @@
       );
 
     if (
+      settingsReceived &&
       settings.enabled &&
       settings.disableScrollEffects &&
       scrollDriven
     ) {
-      animation.cancel();
+      settleScrollDrivenAnimation(animation);
       return true;
     }
 
@@ -128,7 +177,9 @@
   });
 
   function scrollEffectBlockingActive() {
-    return settings.enabled && settings.disableScrollEffects;
+    return (
+      settingsReceived && settings.enabled && settings.disableScrollEffects
+    );
   }
 
   function cancelAnimationRoot(root) {
@@ -190,7 +241,7 @@
       scheduleAnimationRootScan(root);
     });
     observer.observe(root, {
-      attributes: true,
+      attributeFilter: ["class", "id", "style"],
       childList: true,
       subtree: true,
     });
@@ -336,6 +387,7 @@
       disableScrollEffects: next.disableScrollEffects !== false,
       blockAutoplay: next.blockAutoplay === true,
     };
+    settingsReceived = true;
 
     if (settings.enabled && settings.disableScrollEffects) {
       cancelRootScrollDrivenAnimations();

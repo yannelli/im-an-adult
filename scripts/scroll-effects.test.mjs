@@ -6,7 +6,13 @@ import vm from "node:vm";
 const root = new URL("..", import.meta.url);
 const contentScript = readFileSync(new URL("content-main.js", root), "utf8");
 
-function loadContentScript() {
+function loadContentScript({
+  initialSettings = {
+    blockHijacking: true,
+    disableScrollEffects: true,
+    enabled: true,
+  },
+} = {}) {
   const observerInstances = [];
 
   class FakeEventTarget {
@@ -37,6 +43,8 @@ function loadContentScript() {
   class FakeAnimation {
     constructor(effect = null, timeline = null) {
       this.cancelCalls = 0;
+      this.commitStylesCalls = 0;
+      this.currentTimeValue = null;
       this.effect = effect;
       this.nativePlayCalls = 0;
       this.playState = "idle";
@@ -51,9 +59,35 @@ function loadContentScript() {
       this.timelineValue = value;
     }
 
+    get currentTime() {
+      return this.currentTimeValue;
+    }
+
+    set currentTime(value) {
+      this.currentTimeValue = value;
+      if (
+        value?.unit === "percent" &&
+        value.value === 100 &&
+        this.effect?.target
+      ) {
+        this.effect.target.animatedStyle = { ...this.effect.endStyle };
+      }
+    }
+
     cancel() {
       this.cancelCalls += 1;
       this.playState = "idle";
+      if (this.effect?.target) this.effect.target.animatedStyle = null;
+    }
+
+    commitStyles() {
+      this.commitStylesCalls += 1;
+      if (this.effect?.target?.animatedStyle) {
+        Object.assign(
+          this.effect.target.computedStyle,
+          this.effect.target.animatedStyle,
+        );
+      }
     }
 
     play() {
@@ -101,6 +135,12 @@ function loadContentScript() {
     constructor() {
       super();
       this.animations = [];
+      this.animatedStyle = null;
+      this.computedStyle = {
+        display: "block",
+        opacity: "1",
+        visibility: "visible",
+      };
     }
 
     animate(_keyframes, options = {}) {
@@ -157,7 +197,10 @@ function loadContentScript() {
       observerInstances.push(this);
     }
 
-    observe() {}
+    observe(target, options) {
+      this.target = target;
+      this.options = options;
+    }
   }
 
   class FakeDocument extends FakeEventTarget {
@@ -187,6 +230,11 @@ function loadContentScript() {
   const window = new FakeWindow();
   const context = vm.createContext({
     Animation: FakeAnimation,
+    CSS: {
+      percent(value) {
+        return { unit: "percent", value };
+      },
+    },
     CSSStyleSheet: FakeCSSStyleSheet,
     Document: FakeDocument,
     DocumentTimeline,
@@ -201,11 +249,21 @@ function loadContentScript() {
     Window: FakeWindow,
     createCrossRealmScrollTimeline,
     document,
+    getComputedStyle(element) {
+      return {
+        ...element.computedStyle,
+        ...element.animatedStyle,
+      };
+    },
     queueMicrotask,
     window,
   });
 
   vm.runInContext(contentScript, context);
+
+  if (initialSettings) {
+    window.dispatch("__ima_settings__", { detail: initialSettings });
+  }
 
   return { context, document, observerInstances, window };
 }
@@ -228,6 +286,80 @@ test("Element.animate cancels only native scroll-driven animations", () => {
   assert.equal(ordinary.playState, "running");
   assert.equal(scrollDriven.cancelCalls, 1);
   assert.equal(scrollDriven.playState, "idle");
+});
+
+test("scroll reveals settle in their visible end state", () => {
+  const { context } = loadContentScript();
+  const target = new context.Element();
+  target.computedStyle.opacity = "0";
+  const animation = new context.Animation(
+    { endStyle: { opacity: "1" }, target },
+    new context.ViewTimeline(),
+  );
+
+  animation.play();
+
+  assert.equal(context.getComputedStyle(target).opacity, "1");
+  assert.equal(animation.playState, "idle");
+});
+
+test("visible scroll effects cancel without committing an end state", () => {
+  const { context } = loadContentScript();
+  const target = new context.Element();
+  const animation = new context.Animation(
+    { endStyle: { opacity: "0.5" }, target },
+    new context.ScrollTimeline(),
+  );
+
+  animation.play();
+
+  assert.equal(context.getComputedStyle(target).opacity, "1");
+  assert.equal(animation.commitStylesCalls, 0);
+});
+
+test("scroll animations wait for settings before making irreversible changes", () => {
+  const { context, window } = loadContentScript({ initialSettings: null });
+  const element = new context.Element();
+  const animation = element.animate([], {
+    timeline: new context.ScrollTimeline(),
+  });
+
+  assert.equal(animation.cancelCalls, 0);
+  assert.equal(animation.playState, "running");
+
+  window.dispatch("__ima_settings__", {
+    detail: { disableScrollEffects: true, enabled: false },
+  });
+
+  assert.equal(animation.cancelCalls, 0);
+  assert.equal(animation.playState, "running");
+});
+
+test("the first enabled setting flushes animations created while settings load", () => {
+  const { context, document, window } = loadContentScript({
+    initialSettings: null,
+  });
+  const animation = new context.Animation(
+    null,
+    new context.ScrollTimeline(),
+  );
+  document.animations.push(animation);
+
+  window.dispatch("__ima_settings__", {
+    detail: { disableScrollEffects: true, enabled: true },
+  });
+
+  assert.equal(animation.cancelCalls, 1);
+});
+
+test("animation discovery observes only style-affecting attributes", () => {
+  const { observerInstances } = loadContentScript();
+
+  assert.deepEqual(observerInstances[0].options.attributeFilter, [
+    "class",
+    "id",
+    "style",
+  ]);
 });
 
 test("Animation.play blocks animations created directly with a scroll timeline", () => {
