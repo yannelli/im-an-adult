@@ -16,7 +16,23 @@
   ]);
 
   const nativeAddEventListener = EventTarget.prototype.addEventListener;
+  const nativeFinalizationRegistry = FinalizationRegistry;
   const nativePreventDefault = Event.prototype.preventDefault;
+  const nativeMutationObserver = MutationObserver;
+  const nativeQueueMicrotask = queueMicrotask;
+  const nativeScrollTimeline =
+    typeof ScrollTimeline === "function" ? ScrollTimeline : null;
+  const nativeViewTimeline =
+    typeof ViewTimeline === "function" ? ViewTimeline : null;
+  const nativeWeakRef = WeakRef;
+  const nativeScrollTimelineSource = nativeScrollTimeline
+    ? Object.getOwnPropertyDescriptor(nativeScrollTimeline.prototype, "source")
+        ?.get
+    : null;
+  const nativeViewTimelineSubject = nativeViewTimeline
+    ? Object.getOwnPropertyDescriptor(nativeViewTimeline.prototype, "subject")
+        ?.get
+    : null;
 
   Event.prototype.preventDefault = function () {
     if (
@@ -58,23 +74,230 @@
   }
   patchScrollMethod(Element.prototype, "scrollIntoView");
 
+  function hasNativeTimelineBrand(timeline, constructor, brandGetter) {
+    if (!timeline) return false;
+    if (constructor && timeline instanceof constructor) return true;
+    if (typeof brandGetter !== "function") return false;
+
+    try {
+      brandGetter.call(timeline);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function cancelScrollDrivenAnimation(animation) {
+    const timeline = animation?.timeline;
+    const scrollDriven =
+      hasNativeTimelineBrand(
+        timeline,
+        nativeScrollTimeline,
+        nativeScrollTimelineSource,
+      ) ||
+      hasNativeTimelineBrand(
+        timeline,
+        nativeViewTimeline,
+        nativeViewTimelineSubject,
+      );
+
+    if (
+      settings.enabled &&
+      settings.disableScrollEffects &&
+      scrollDriven
+    ) {
+      animation.cancel();
+      return true;
+    }
+
+    return false;
+  }
+
+  function cancelScrollDrivenAnimations(animations) {
+    for (const animation of animations) {
+      cancelScrollDrivenAnimation(animation);
+    }
+  }
+
+  const animationRootReferences = new Set();
+  const observedAnimationRoots = new WeakSet();
+  const pendingAnimationRoots = new Set();
+  let animationScanScheduled = false;
+  const animationRootFinalizer = new nativeFinalizationRegistry((reference) => {
+    animationRootReferences.delete(reference);
+  });
+
+  function scrollEffectBlockingActive() {
+    return settings.enabled && settings.disableScrollEffects;
+  }
+
+  function cancelAnimationRoot(root) {
+    if (!scrollEffectBlockingActive()) return;
+    cancelScrollDrivenAnimations(root.getAnimations?.() ?? []);
+  }
+
+  function cancelRootScrollDrivenAnimations() {
+    if (!scrollEffectBlockingActive()) return;
+
+    for (const reference of animationRootReferences) {
+      const root = reference.deref();
+      if (root) {
+        cancelAnimationRoot(root);
+      } else {
+        animationRootReferences.delete(reference);
+      }
+    }
+  }
+
+  function scheduleAnimationRootScan(root) {
+    if (!scrollEffectBlockingActive() || !root) return;
+    pendingAnimationRoots.add(root);
+    if (animationScanScheduled) return;
+
+    animationScanScheduled = true;
+    nativeQueueMicrotask(() => {
+      animationScanScheduled = false;
+      for (const pendingRoot of pendingAnimationRoots) {
+        cancelAnimationRoot(pendingRoot);
+      }
+      pendingAnimationRoots.clear();
+    });
+  }
+
+  function observeShadowRoots(node) {
+    if (node?.nodeType !== 1) return;
+
+    if (node.shadowRoot) observeAnimationRoot(node.shadowRoot);
+    for (const element of node.querySelectorAll?.("*") ?? []) {
+      if (element.shadowRoot) observeAnimationRoot(element.shadowRoot);
+    }
+  }
+
+  function observeAnimationRoot(root) {
+    if (!root || observedAnimationRoots.has(root)) return;
+    observedAnimationRoots.add(root);
+
+    const reference = new nativeWeakRef(root);
+    animationRootReferences.add(reference);
+    animationRootFinalizer.register(root, reference);
+
+    const observer = new nativeMutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes ?? []) {
+          observeShadowRoots(node);
+        }
+      }
+      scheduleAnimationRootScan(root);
+    });
+    observer.observe(root, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+    cancelAnimationRoot(root);
+  }
+
+  observeAnimationRoot(document);
+
+  const nativeAttachShadow = Element.prototype.attachShadow;
+  if (typeof nativeAttachShadow === "function") {
+    Element.prototype.attachShadow = function (...args) {
+      const root = nativeAttachShadow.apply(this, args);
+      observeAnimationRoot(root);
+      return root;
+    };
+  }
+
+  function patchAdoptedStyleSheets(prototype) {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      prototype,
+      "adoptedStyleSheets",
+    );
+    if (typeof descriptor?.set !== "function") return;
+
+    Object.defineProperty(prototype, "adoptedStyleSheets", {
+      ...descriptor,
+      set(value) {
+        descriptor.set.call(this, value);
+        cancelRootScrollDrivenAnimations();
+      },
+    });
+  }
+
+  patchAdoptedStyleSheets(Document.prototype);
+  patchAdoptedStyleSheets(ShadowRoot.prototype);
+
+  if (typeof CSSStyleSheet === "function") {
+    for (const name of ["deleteRule", "insertRule", "replaceSync"]) {
+      const nativeMethod = CSSStyleSheet.prototype[name];
+      if (typeof nativeMethod !== "function") continue;
+
+      CSSStyleSheet.prototype[name] = function (...args) {
+        const result = nativeMethod.apply(this, args);
+        cancelRootScrollDrivenAnimations();
+        return result;
+      };
+    }
+
+    const nativeReplace = CSSStyleSheet.prototype.replace;
+    if (typeof nativeReplace === "function") {
+      CSSStyleSheet.prototype.replace = function (...args) {
+        const result = nativeReplace.apply(this, args);
+        result.then(cancelRootScrollDrivenAnimations, () => {});
+        return result;
+      };
+    }
+  }
+
   const nativeAnimate = Element.prototype.animate;
   if (typeof nativeAnimate === "function") {
     Element.prototype.animate = function (keyframes, options) {
       const animation = nativeAnimate.call(this, keyframes, options);
-      const timelineName = options?.timeline?.constructor?.name;
-
-      if (
-        settings.enabled &&
-        settings.disableScrollEffects &&
-        (timelineName === "ScrollTimeline" || timelineName === "ViewTimeline")
-      ) {
-        animation.cancel();
-      }
+      cancelScrollDrivenAnimation(animation);
 
       return animation;
     };
   }
+
+  const nativeAnimationPlay = Animation.prototype.play;
+  if (typeof nativeAnimationPlay === "function") {
+    Animation.prototype.play = function (...args) {
+      if (cancelScrollDrivenAnimation(this)) return;
+      return nativeAnimationPlay.apply(this, args);
+    };
+  }
+
+  const nativeTimelineDescriptor = Object.getOwnPropertyDescriptor(
+    Animation.prototype,
+    "timeline",
+  );
+  if (typeof nativeTimelineDescriptor?.set === "function") {
+    Object.defineProperty(Animation.prototype, "timeline", {
+      ...nativeTimelineDescriptor,
+      set(value) {
+        nativeTimelineDescriptor.set.call(this, value);
+        cancelScrollDrivenAnimation(this);
+      },
+    });
+  }
+
+  nativeAddEventListener.call(
+    document,
+    "animationstart",
+    (event) => {
+      cancelScrollDrivenAnimations(event.target?.getAnimations?.() ?? []);
+    },
+    true,
+  );
+
+  nativeAddEventListener.call(
+    document,
+    "load",
+    (event) => {
+      scheduleAnimationRootScan(event.target?.getRootNode?.() ?? document);
+    },
+    true,
+  );
 
   for (const eventName of ["pointerdown", "mousedown", "touchstart", "keydown"]) {
     nativeAddEventListener.call(
@@ -113,5 +336,9 @@
       disableScrollEffects: next.disableScrollEffects !== false,
       blockAutoplay: next.blockAutoplay === true,
     };
+
+    if (settings.enabled && settings.disableScrollEffects) {
+      cancelRootScrollDrivenAnimations();
+    }
   });
 })();
