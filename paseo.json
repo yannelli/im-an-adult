@@ -1,0 +1,31 @@
+{
+  "scripts": {
+    "test": {
+      "command": "bun run test"
+    },
+    "check": {
+      "command": "bun run check"
+    },
+    "package": {
+      "command": "bun run package"
+    },
+    "preview": {
+      "type": "service",
+      "command": "python3 -m http.server \"$PASEO_PORT\" --bind \"$HOST\""
+    }
+  },
+  "metadataGeneration": {
+    "title": {
+      "instructions": "Use a concise task phrase of three to six words. No ticket number or trailing punctuation."
+    },
+    "branchName": {
+      "instructions": "Use lowercase kebab-case: <type>/<short-description>. Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert."
+    },
+    "commitMessage": {
+      "instructions": "Use Conventional Commits: <type>[optional scope][optional !]: <description>. Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert. A scope has no whitespace or closing parenthesis. A breaking change uses ! or a BREAKING CHANGE footer. SemVer mapping: breaking change is MAJOR; feat is MINOR; fix, perf, and revert are PATCH; docs, style, refactor, test, build, ci, and chore produce no release. GitHub Revert \"...\" subjects are accepted. Do not propose manual version changes to package.json or manifest.json. Do not add Co-authored-by, Generated-by, Made-with, or tool attribution trailers."
+    },
+    "pullRequest": {
+      "instructions": "Use a Conventional Commit title; a trailing (#123) is allowed. The body has ## Change and ## How verified sections. State the changed behavior and the checks actually run. Do not add bot, agent, or tool attribution."
+    }
+  }
+}
