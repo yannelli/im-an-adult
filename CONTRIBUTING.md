@@ -74,7 +74,7 @@ Merges to `main` are classified as:
 
 The changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries list the change, not the author.
 
-After a releasable merge, CI packages the extension zip, tags `vX.Y.Z`, updates `CHANGELOG.md`, and publishes a GitHub Release.
+After a releasable merge, CI packages the extension zip, tags `vX.Y.Z`, updates `CHANGELOG.md`, and publishes a GitHub Release. A follow-up workflow then uploads that zip to the Chrome Web Store.
 
 ## Pull requests
 
@@ -102,3 +102,28 @@ Maintainers: the pipeline publishes only when a personal token is available.
 4. Use squash merge with conventional titles.
 
 The first successful run on `main` tags `v0.1.0` if no version tags exist yet. Later `feat` / `fix` / breaking merges cut the next SemVer release.
+
+## Chrome Web Store
+
+After each SemVer GitHub Release is published, CI uploads the release zip and submits it for Chrome Web Store review. The listing must already exist; the API cannot create a new item. Until the secrets below are set, that follow-up job fails on the next SemVer release. Prereleases and non-`vX.Y.Z` tags are skipped.
+
+One-time setup:
+
+1. In the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole), create the item, fill the **Store listing** and **Privacy** tabs, and publish once by hand with the visibility you want. Copy the 32-character item ID. Copy the publisher ID from **Publisher → Settings**. The Google account needs 2-step verification.
+2. In [Google Cloud Console](https://console.cloud.google.com/), create or pick a project and enable **Chrome Web Store API**.
+3. Configure the **OAuth consent screen** as External, add your publisher email as a test user, then publish the app (**Audience → In production**). Leaving it in Testing makes refresh tokens expire after seven days.
+4. Create an OAuth **Web application** client. Add `https://developers.google.com/oauthplayground` as an authorized redirect URI.
+5. In the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground), open the gear menu, choose **Use your own OAuth credentials**, and enter the client ID and secret. Authorize the scope `https://www.googleapis.com/auth/chromewebstore` with the same Google account that owns the listing. Exchange the code and copy the refresh token.
+6. Add these repository secrets (**Settings → Secrets and variables → Actions**):
+
+| Secret | Value |
+| --- | --- |
+| `CHROME_EXTENSION_ID` | 32-character item ID |
+| `CHROME_PUBLISHER_ID` | Publisher ID |
+| `CHROME_CLIENT_ID` | OAuth client ID |
+| `CHROME_CLIENT_SECRET` | OAuth client secret |
+| `CHROME_REFRESH_TOKEN` | OAuth refresh token |
+
+Optional repository variable `CHROME_PUBLISH_TARGET`: `STAGED_PUBLISH` to stage after review. Unset means default production publish. Trusted-tester visibility is set on the listing, not by this variable.
+
+To retry a release, run **Actions → Chrome Web Store → Run workflow** and enter the tag (`vX.Y.Z`). A retry is safe if that version was already uploaded or is pending review.
