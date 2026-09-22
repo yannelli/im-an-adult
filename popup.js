@@ -14,46 +14,131 @@ const controls = {
 const siteEnabled = document.querySelector("#site-enabled");
 const siteName = document.querySelector("#site-name");
 const sitePanel = document.querySelector("#site-panel");
+const siteState = document.querySelector("#site-state");
 const siteStatus = document.querySelector("#site-status");
+const saveStatus = document.querySelector("#save-status");
+const resetSettings = document.querySelector("#reset-settings");
 
 const SITE_STATES = {
-  active: "Under your control.",
-  paused: "Doing whatever it wants.",
-  unavailable: "Chrome keeps its own pages off-limits.",
+  active: {
+    label: "Protection on",
+    detail: "This site can’t interfere with scrolling.",
+  },
+  paused: {
+    label: "Protection paused",
+    detail: "This site can control scrolling.",
+  },
+  unavailable: {
+    label: "Unavailable here",
+    detail: "Chrome keeps its own pages off-limits.",
+  },
 };
 
 function renderSiteState(state) {
   sitePanel.dataset.state = state;
-  siteStatus.textContent = SITE_STATES[state];
+  siteState.textContent = SITE_STATES[state].label;
+  siteStatus.textContent = SITE_STATES[state].detail;
 }
 
-const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+let statusTimer;
+
+function showSaveStatus(message, state = "saved") {
+  clearTimeout(statusTimer);
+  saveStatus.textContent = message;
+  saveStatus.dataset.state = state;
+  if (state === "saved") {
+    statusTimer = setTimeout(() => {
+      saveStatus.textContent = "Up to date";
+      delete saveStatus.dataset.state;
+    }, 1400);
+  }
+}
+
+function renderSettings() {
+  for (const [key, control] of Object.entries(controls)) {
+    control.checked = settings[key];
+  }
+
+  for (const group of document.querySelectorAll(".group")) {
+    const enabled = group.querySelectorAll('input[role="switch"]:checked').length;
+    group.querySelector(".group-count").textContent = `${enabled} on`;
+  }
+
+  resetSettings.disabled = Object.entries(DEFAULT_SETTINGS).every(
+    ([key, value]) => settings[key] === value,
+  );
+}
+
+let tab;
+
+try {
+  [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+} catch {
+  showSaveStatus("Couldn’t read this tab", "error");
+}
+
 let hostname = "";
 
 try {
-  const url = new URL(tab.url);
+  const url = new URL(tab?.url);
   if (url.protocol === "http:" || url.protocol === "https:") {
     hostname = url.hostname;
   }
 } catch {}
 
-const stored = await chrome.storage.sync.get(["settings", "disabledSites"]);
+let stored = {};
+
+try {
+  stored = await chrome.storage.sync.get(["settings", "disabledSites"]);
+} catch {
+  showSaveStatus("Couldn’t load settings", "error");
+}
+
 let settings = { ...DEFAULT_SETTINGS, ...stored.settings };
 let disabledSites = stored.disabledSites ?? {};
 
 for (const [key, control] of Object.entries(controls)) {
-  control.checked = settings[key];
   control.addEventListener("change", async () => {
+    const previousSettings = settings;
     settings = { ...settings, [key]: control.checked };
-    await chrome.storage.sync.set({ settings });
+    renderSettings();
+    showSaveStatus("Saving…", "saving");
+
+    try {
+      await chrome.storage.sync.set({ settings });
+      showSaveStatus("Saved");
+    } catch {
+      settings = previousSettings;
+      renderSettings();
+      showSaveStatus("Change wasn’t saved", "error");
+    }
   });
 }
+
+resetSettings.addEventListener("click", async () => {
+  const previousSettings = settings;
+  settings = { ...DEFAULT_SETTINGS };
+  renderSettings();
+  showSaveStatus("Saving…", "saving");
+
+  try {
+    await chrome.storage.sync.set({ settings });
+    showSaveStatus("Defaults restored");
+  } catch {
+    settings = previousSettings;
+    renderSettings();
+    showSaveStatus("Defaults weren’t restored", "error");
+  }
+});
+
+renderSettings();
 
 if (hostname) {
   siteName.textContent = hostname;
   siteEnabled.checked = !disabledSites[hostname];
   renderSiteState(siteEnabled.checked ? "active" : "paused");
   siteEnabled.addEventListener("change", async () => {
+    const previousDisabledSites = disabledSites;
     renderSiteState(siteEnabled.checked ? "active" : "paused");
     disabledSites = { ...disabledSites };
     if (siteEnabled.checked) {
@@ -61,7 +146,17 @@ if (hostname) {
     } else {
       disabledSites[hostname] = true;
     }
-    await chrome.storage.sync.set({ disabledSites });
+    showSaveStatus("Saving…", "saving");
+
+    try {
+      await chrome.storage.sync.set({ disabledSites });
+      showSaveStatus("Saved");
+    } catch {
+      disabledSites = previousDisabledSites;
+      siteEnabled.checked = !disabledSites[hostname];
+      renderSiteState(siteEnabled.checked ? "active" : "paused");
+      showSaveStatus("Change wasn’t saved", "error");
+    }
   });
 } else {
   siteName.textContent = "Not a website";
