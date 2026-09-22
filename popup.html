@@ -9,58 +9,105 @@
   <body>
     <header class="masthead">
       <h1><img src="assets/logo.svg" alt="I’m an Adult." /></h1>
-      <p class="tagline">Let me scroll<span class="dot">.</span></p>
+      <p class="tagline">The web behaves. You keep scrolling<span class="dot">.</span></p>
     </header>
 
     <label class="site" id="site-panel" data-state="active" for="site-enabled">
       <span class="site-info">
-        <span class="overline">This site</span>
+        <span class="site-kicker" id="site-state">Protection on</span>
         <span class="hostname" id="site-name">&hellip;</span>
         <span class="site-status" id="site-status"></span>
       </span>
-      <input id="site-enabled" type="checkbox" role="switch" checked />
+      <input
+        id="site-enabled"
+        type="checkbox"
+        role="switch"
+        aria-label="Protect this site"
+        checked
+      />
     </label>
 
     <main>
       <section class="group" aria-labelledby="scroll-heading">
-        <h2 class="overline rule" id="scroll-heading">Scrolling</h2>
-        <label class="row">
+        <header class="group-heading">
           <span>
-            <strong>Block scroll hijacking</strong>
-            <small>Pages can&rsquo;t cancel or capture wheel and touch input</small>
+            <span class="overline">Core controls</span>
+            <h2 id="scroll-heading">Scrolling</h2>
           </span>
-          <input id="block-hijacking" type="checkbox" role="switch" checked />
+          <span class="group-count">2 on</span>
+        </header>
+        <label class="row">
+          <span class="row-copy">
+            <strong>Block scroll hijacking</strong>
+            <small>Keeps wheel and touch scrolling responsive</small>
+          </span>
+          <input
+            id="block-hijacking"
+            type="checkbox"
+            role="switch"
+            aria-label="Block scroll hijacking"
+            checked
+          />
         </label>
         <label class="row">
-          <span>
-            <strong>Disable scroll effects (experimental)</strong>
-            <small>Best effort for smooth scrolling, snap points, and native scroll animation</small>
+          <span class="row-copy">
+            <span class="title-line">
+              <strong>Disable scroll effects</strong>
+              <span class="badge">Labs</span>
+            </span>
+            <small>Turns off smooth scrolling, snap points, and scroll-linked animation</small>
           </span>
-          <input id="disable-scroll-effects" type="checkbox" role="switch" checked />
+          <input
+            id="disable-scroll-effects"
+            type="checkbox"
+            role="switch"
+            aria-label="Disable scroll effects"
+            checked
+          />
         </label>
       </section>
 
-      <section class="group group-secondary" aria-labelledby="media-heading">
-        <h2 class="overline rule" id="media-heading">While we&rsquo;re at it</h2>
-        <label class="row">
+      <section class="group" aria-labelledby="media-heading">
+        <header class="group-heading">
           <span>
-            <strong>Disable animated cursors</strong>
-            <small>Uses normal pointers and hides cursor followers</small>
+            <span class="overline">Optional</span>
+            <h2 id="media-heading">Page annoyances</h2>
           </span>
-          <input id="disable-animated-cursors" type="checkbox" role="switch" />
+          <span class="group-count">0 on</span>
+        </header>
+        <label class="row">
+          <span class="row-copy">
+            <strong>Disable custom cursors</strong>
+            <small>Restores the browser&rsquo;s default pointer</small>
+          </span>
+          <input
+            id="disable-animated-cursors"
+            type="checkbox"
+            role="switch"
+            aria-label="Disable custom cursors"
+          />
         </label>
         <label class="row">
-          <span>
+          <span class="row-copy">
             <strong>Block autoplay</strong>
-            <small>Media waits until you press play</small>
+            <small>Audio and video wait for you to press play</small>
           </span>
-          <input id="block-autoplay" type="checkbox" role="switch" />
+          <input
+            id="block-autoplay"
+            type="checkbox"
+            role="switch"
+            aria-label="Block autoplay"
+          />
         </label>
       </section>
     </main>
 
     <footer>
-      <p>Preferences apply on every site. The switch up top only speaks for this one.</p>
+      <p>Settings apply everywhere. The top switch affects only this site.</p>
+      <span class="footer-actions">
+        <span class="save-status" id="save-status" aria-live="polite">Up to date</span>
+        <button id="reset-settings" type="button">Restore defaults</button>
+      </span>
     </footer>
 
     <script src="popup.js" type="module"></script>

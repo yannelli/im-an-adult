@@ -52,7 +52,10 @@ test("the popup persists the animated-cursor preference", async () => {
     "#site-enabled",
     "#site-name",
     "#site-panel",
+    "#site-state",
     "#site-status",
+    "#save-status",
+    "#reset-settings",
   ];
   const controls = new Map(selectors.map((selector) => [selector, createControl()]));
   const writes = [];
@@ -60,6 +63,9 @@ test("the popup persists the animated-cursor preference", async () => {
   globalThis.document = {
     querySelector(selector) {
       return controls.get(selector);
+    },
+    querySelectorAll() {
+      return [];
     },
   };
   globalThis.chrome = {

@@ -1,18 +1,14 @@
-/* I'm an Adult — popup
-   Editorial control panel on the "Scrolling. Period." brand:
-   cream paper, pine, terracotta full stops. Serif is reserved
-   for the masthead and status verdicts; everything operable
-   is set in the system sans. */
-
 :root {
   --paper: #f3f1e8;
+  --surface: #faf8f0;
+  --surface-hover: #eeeadf;
   --ink: #17231d;
-  --muted: #4a544d;
-  --hairline: rgb(23 35 29 / 16%);
+  --muted: #566159;
+  --hairline: rgb(23 35 29 / 15%);
   --green: #1b4a33;
   --green-deep: #123525;
   --cream: #f3f1e8;
-  --brick: #eb5c3f;
+  --brick: #d84f34;
   --serif: "Iowan Old Style", Georgia, "Times New Roman", serif;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -26,9 +22,11 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #181c19;
+    --surface: #202521;
+    --surface-hover: #282e29;
     --ink: #e9e7db;
-    --muted: #9aa39c;
-    --hairline: rgb(233 231 219 / 18%);
+    --muted: #a5ada7;
+    --hairline: rgb(233 231 219 / 16%);
     --green: #266a4b;
     --green-deep: #143424;
     --brick: #e0714f;
@@ -40,9 +38,15 @@
 }
 
 body {
-  width: 340px;
+  width: 372px;
   margin: 0;
   background: var(--paper);
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input {
+  font: inherit;
 }
 
 h1,
@@ -51,203 +55,260 @@ p {
   margin: 0;
 }
 
-/* ---- Masthead ---- */
-
 .masthead {
   margin: 0 16px;
-  padding: 16px 0 10px;
-  border-bottom: 3px double var(--ink);
+  padding: 18px 0 14px;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .masthead h1 img {
   display: block;
   width: auto;
-  height: 32px;
+  height: 31px;
 }
 
 .tagline {
-  margin-top: 6px;
+  margin-top: 7px;
   font-family: var(--serif);
-  font-style: italic;
   font-size: 13px;
-  color: #2e5b43;
+  font-style: italic;
+  color: var(--muted);
 }
 
 .tagline .dot {
   color: var(--brick);
 }
 
-@media (prefers-color-scheme: dark) {
-  .tagline {
-    color: #8fbfa3;
-  }
-}
-
-/* ---- Site panel: the verdict ---- */
-
 .site {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin: 12px 16px 0;
-  padding: 12px 14px;
+  gap: 18px;
+  min-height: 104px;
+  margin: 14px 16px 0;
+  padding: 16px;
+  overflow: hidden;
   border: 1px solid var(--hairline);
-  border-radius: 8px;
+  border-radius: 14px;
+  background: var(--surface);
   cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.site:active {
+  transform: translateY(1px);
 }
 
 .site-info {
   min-width: 0;
 }
 
-.overline {
-  display: block;
-  font-size: 9.5px;
+.site-kicker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
   font-weight: 750;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+}
+
+.site-kicker::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
 }
 
 .hostname {
   display: block;
   overflow: hidden;
-  margin-top: 4px;
+  margin-top: 8px;
   font-family: var(--mono);
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .site-status {
   display: block;
-  margin-top: 3px;
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 12.5px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.35;
   color: var(--muted);
 }
 
-/* Site under control: the whole panel goes pine. */
 .site[data-state="active"] {
-  background: var(--green);
   border-color: var(--green);
+  background: var(--green);
   color: var(--cream);
 }
 
-.site[data-state="active"] .overline {
-  color: rgb(243 241 232 / 65%);
-}
-
 .site[data-state="active"] .site-status {
-  color: rgb(243 241 232 / 85%);
+  color: rgb(243 241 232 / 78%);
 }
 
-/* Paused: back to paper, verdict in terracotta. */
-.site[data-state="paused"] .site-status {
+.site[data-state="paused"] .site-kicker {
   color: var(--brick);
 }
 
-/* Not a website: intentionally inert. */
 .site[data-state="unavailable"] {
   border-style: dashed;
-  cursor: default;
   color: var(--muted);
+  cursor: default;
+}
+
+.site[data-state="unavailable"]:active {
+  transform: none;
 }
 
 .site[data-state="unavailable"] .hostname {
   font-family: var(--sans);
-  font-weight: 600;
-  font-size: 13.5px;
+  font-size: 14px;
+  letter-spacing: 0;
 }
 
-/* ---- Settings ---- */
-
 main {
-  padding: 4px 16px 0;
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 0;
 }
 
 .group {
-  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--surface);
 }
 
-.overline.rule {
+.group-heading {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--hairline);
 }
 
-.overline.rule::after {
-  content: "";
-  flex: 1;
-  border-top: 1px solid var(--hairline);
+.overline {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.group h2 {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.group-count {
+  padding: 3px 7px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--paper);
 }
 
 .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  min-height: 54px;
-  padding: 9px 0;
+  gap: 16px;
+  min-height: 66px;
+  padding: 12px 14px;
   cursor: pointer;
+  transition: background 140ms ease;
 }
 
 .row + .row {
   border-top: 1px solid var(--hairline);
 }
 
-.row > span {
+@media (hover: hover) {
+  .row:hover {
+    background: var(--surface-hover);
+  }
+}
+
+.row-copy {
   min-width: 0;
 }
 
 .row strong {
   display: block;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 650;
+  line-height: 1.25;
 }
 
 .row small {
   display: block;
-  margin-top: 2px;
-  font-size: 11px;
+  margin-top: 3px;
+  font-size: 11.5px;
   line-height: 1.4;
   color: var(--muted);
 }
 
-.group-secondary .row {
-  min-height: 46px;
-  padding: 7px 0;
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
-/* ---- Switches: breaker-style, squared ---- */
+.badge {
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--brick), transparent 58%);
+  border-radius: 4px;
+  color: var(--brick);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
 
 input[role="switch"] {
+  position: relative;
   flex: 0 0 auto;
-  width: 40px;
-  height: 22px;
+  width: 44px;
+  height: 24px;
   margin: 0;
   appearance: none;
-  border: 1px solid var(--muted);
-  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--muted), transparent 18%);
+  border-radius: 999px;
   background: transparent;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
 }
 
 input[role="switch"]::after {
-  content: "";
-  display: block;
-  width: 14px;
-  height: 14px;
-  margin: 3px;
-  border-radius: 3px;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
   background: var(--muted);
-  transition: transform 120ms ease, background 120ms ease;
+  content: "";
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.75, 0.3, 1),
+    background 140ms ease;
 }
 
 input[role="switch"]:checked {
@@ -257,10 +318,9 @@ input[role="switch"]:checked {
 
 input[role="switch"]:checked::after {
   background: var(--cream);
-  transform: translateX(18px);
+  transform: translateX(20px);
 }
 
-/* On the pine panel, the switch inverts. */
 .site[data-state="active"] input[role="switch"] {
   border-color: var(--cream);
   background: var(--cream);
@@ -270,37 +330,98 @@ input[role="switch"]:checked::after {
   background: var(--green-deep);
 }
 
-input[role="switch"]:focus-visible {
+input[role="switch"]:focus-visible,
+button:focus-visible {
   outline: 2px solid var(--brick);
   outline-offset: 2px;
 }
 
 input[role="switch"]:disabled {
-  cursor: not-allowed;
   border-style: dashed;
-  opacity: 0.5;
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 input[role="switch"]:disabled::after {
   visibility: hidden;
 }
 
-/* ---- Footer ---- */
-
 footer {
-  margin: 12px 16px 0;
-  padding: 8px 0 12px;
-  border-top: 1px solid var(--hairline);
+  margin: 14px 16px 0;
+  padding: 0 0 14px;
 }
 
 footer p {
   font-size: 10.5px;
-  line-height: 1.5;
+  line-height: 1.45;
   color: var(--muted);
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  margin-top: 5px;
+}
+
+.save-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.save-status::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  content: "";
+}
+
+.save-status[data-state="saving"]::before {
+  background: var(--muted);
+}
+
+.save-status[data-state="error"] {
+  color: var(--brick);
+}
+
+.save-status[data-state="error"]::before {
+  background: var(--brick);
+}
+
+button {
+  min-height: 30px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--hairline);
+  text-underline-offset: 3px;
+}
+
+button:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 1;
+  text-decoration: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .site,
+  .row,
   input[role="switch"],
   input[role="switch"]::after {
     transition: none;
