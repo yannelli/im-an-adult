@@ -9,6 +9,7 @@
     "check": "bun test && bun scripts/check.mjs",
     "lint:commit": "bun scripts/lint-commit.mjs",
     "package": "bun scripts/package-extension.mjs",
-    "release": "bun scripts/release.mjs"
+    "release": "bun scripts/release.mjs",
+    "publish:chrome": "bun scripts/publish-chrome-web-store.mjs"
   }
 }
