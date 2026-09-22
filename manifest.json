@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "I'm an Adult",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Take back control of scrolling from websites.",
   "minimum_chrome_version": "111",
   "permissions": [
